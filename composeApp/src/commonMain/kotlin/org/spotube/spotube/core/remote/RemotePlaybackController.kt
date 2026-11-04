@@ -17,6 +17,7 @@
 
 package org.spotube.spotube.core.remote
 
+import org.koin.core.component.inject
 import co.touchlab.kermit.Logger
 import org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack
 import org.spotube.spotube.core.audioplayer.AudioPlayerQueue
@@ -114,6 +115,7 @@ class RemotePlaybackController(
     private val blacklistRepository: BlacklistRepository,
     private val jamRoomService: JamRoomService) : KoinComponent {
     private val logger = Logger.withTag("RemotePlaybackController")
+    private val deviceManager: PlaybackDeviceManager by inject()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val _pendingRequest = MutableStateFlow<PlaybackDestinationRequest?>(null)
@@ -137,6 +139,32 @@ class RemotePlaybackController(
 
     fun isRemoteConnected(): Boolean {
         return remoteControlClient.connectionState.value is ConnectionState.Connected
+    }
+
+    /** True when actions go to the connected device (see [PlaybackDeviceManager]). */
+    fun isRemoteActive(): Boolean = deviceManager.isRemoteActive
+
+    /**
+     * Plays [tracks] from [startIndex] on the active device. For lists without a collection
+     * (search results, single track cards).
+     */
+    fun playTracks(tracks: List<MetadataTrack>, startIndex: Int = 0) {
+        if (tracks.isEmpty()) return
+        scope.launch {
+            try {
+                if (deviceManager.isRemoteActive) {
+                    remoteControlClient.sendCommand(RemoteControlCommand.LoadQueue(tracks, startIndex))
+                } else {
+                    audioPlayerQueue.load(
+                        entries = tracks.map { QueueEntry.StreamingTrack(track = it, url = "") },
+                        autoPlay = true,
+                        startPosition = startIndex.coerceIn(0, tracks.lastIndex),
+                        collectionEntry = null)
+                }
+            } catch (e: Exception) {
+                logger.e(e) { "Failed to play tracks" }
+            }
+        }
     }
 
     // ---------- Collection actions ----------
@@ -254,8 +282,9 @@ class RemotePlaybackController(
     // ---------- Internals ----------
 
     private fun request(request: PlaybackDestinationRequest) {
-        if (isRemoteConnected()) {
-            _pendingRequest.value = request
+        // No per-action picker any more: the active device decides (switch it from the player).
+        if (deviceManager.isRemoteActive) {
+            executeOnRemote(request)
         } else {
             executeLocally(request)
         }
@@ -393,7 +422,8 @@ class RemotePlaybackController(
                             RemoteCollectionType.SavedTracks -> "spotube://saved_tracks"
                         }
                         when (request.action) {
-                            PlaybackDestinationAction.Play -> RemoteControlCommand.Play(source, request.shuffle)
+                            PlaybackDestinationAction.Play ->
+                                RemoteControlCommand.Play(source, request.shuffle, request.startTrack)
                             PlaybackDestinationAction.AddToQueue -> RemoteControlCommand.AddToQueue(source)
                             PlaybackDestinationAction.PlayNext -> RemoteControlCommand.PlayNext(source)
                         }

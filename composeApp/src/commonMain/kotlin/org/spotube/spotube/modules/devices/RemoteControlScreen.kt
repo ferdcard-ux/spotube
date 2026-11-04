@@ -18,6 +18,9 @@
 package org.spotube.spotube.modules.devices
 
 
+import spotube.composeapp.generated.resources.playback_device_collapse
+import org.spotube.spotube.resources.iconsax.IconsaxArrowDown4
+import org.spotube.spotube.modules.devices.PlaybackDeviceButton
 import org.spotube.millennium.composables.MillenniumButton
 import org.spotube.millennium.composables.MillenniumButtonStyle
 import org.spotube.millennium.composables.MillenniumCard
@@ -142,7 +145,9 @@ private val MaxArtworkSize = 460.dp
 @Composable
 fun RemoteControlScreen(
     onDisconnect: () -> Unit,
-    viewModel: RemoteControlViewModel = koinViewModel()
+    viewModel: RemoteControlViewModel = koinViewModel(),
+    /** Set when shown as the expanded player sheet: replaces the back button with collapse. */
+    onCollapse: (() -> Unit)? = null
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val shellBottomInset = LocalAppShellBottomInset.current
@@ -163,8 +168,17 @@ fun RemoteControlScreen(
                         Text(stringResource(Res.string.devices_remote_playing_on, state.deviceName))
                     }
                 },
-                backButton = true,
+                backButton = onCollapse == null,
                 actions = {
+                    if (onCollapse != null) {
+                        MillenniumIconButton(onClick = onCollapse, style = MillenniumIconButtonStyle.Quiet) {
+                            MillenniumIcon(
+                                imageVector = Iconsax.IconsaxArrowDown4,
+                                contentDescription = stringResource(Res.string.playback_device_collapse)
+                            )
+                        }
+                    }
+                    if (isConnected) PlaybackDeviceButton()
                     if (isConnected && !isWide) {
                         MillenniumIconButton(
                             onClick = viewModel::toggleQueueVisibility,

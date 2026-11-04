@@ -25,7 +25,11 @@ import kotlinx.serialization.Serializable
 sealed class RemoteControlCommand {
     @Serializable
     @SerialName("play")
-    data class Play(val source: String, val shuffle: Boolean = false) : RemoteControlCommand()
+    data class Play(
+        val source: String,
+        val shuffle: Boolean = false,
+        /** Track of a playlist/album to start from (a tap on that track in a list). */
+        val startTrack: MetadataTrack? = null) : RemoteControlCommand()
 
     @Serializable
     @SerialName("pause")
@@ -94,6 +98,18 @@ sealed class RemoteControlCommand {
     @Serializable
     @SerialName("removeFromQueue")
     data class RemoveFromQueue(val mediaUrl: String) : RemoteControlCommand()
+
+    /**
+     * Replaces the host's queue with [tracks], starts at [startIndex] and, when [positionMs] > 0,
+     * seeks there. Used to play a list from a given track and to transfer playback to the host.
+     */
+    @Serializable
+    @SerialName("loadQueue")
+    data class LoadQueue(
+        val tracks: List<MetadataTrack>,
+        val startIndex: Int = 0,
+        val positionMs: Long = 0,
+        val autoPlay: Boolean = true) : RemoteControlCommand()
 }
 
 @Serializable
@@ -144,4 +160,6 @@ data class RemoteQueueEntry(
     val artists: String,
     val album: String?,
     val coverUrl: String?,
-    val durationMs: Long)
+    val durationMs: Long,
+    /** Full metadata of streaming entries, so a controller can take the queue over. */
+    val track: MetadataTrack? = null)

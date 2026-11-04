@@ -66,6 +66,9 @@ class RemoteControlService(
     private var pendingService: NetService? = null
 
     private var registerJob: Job? = null
+
+    /** Configured name and port the current advertisement was registered with. */
+    private var advertisedFor: Pair<String, Int>? = null
     private var cleanupJob: Job? = null
 
     init {
@@ -81,7 +84,13 @@ class RemoteControlService(
                 .distinctUntilChanged()
                 .collect { (settings, port) ->
                     if (settings.allowRemoteControl && port != null) {
-                        if (registerJob?.isActive != true) {
+                        // The advertisement is registered once; a new device name (or port)
+                        // must replace it, or other devices keep seeing the old/default name.
+                        val wanted = settings.remoteControlDeviceName to port
+                        if (advertisedFor != null && advertisedFor != wanted) {
+                            stopAdvertising()
+                        }
+                        if (registerJob?.isActive != true && advertisedService == null) {
                             registerJob = scope.launch {
                                 registerLoop(settings.remoteControlDeviceName, port)
                             }
@@ -143,6 +152,7 @@ class RemoteControlService(
                 service.register(timeoutInMs = REGISTER_TIMEOUT_MS)
                 pendingService = null
                 advertisedService = service
+                advertisedFor = name to port
                 log.i { "Advertising remote control service '$serviceName' on port $port (attempt $attempt)" }
             } catch (e: CancellationException) {
                 throw e
@@ -183,6 +193,7 @@ class RemoteControlService(
         if (advertisedService != null) {
             runCatching { advertisedService?.unregister() }
             advertisedService = null
+            advertisedFor = null
             log.i { "Stopped advertising remote control service" }
         }
     }

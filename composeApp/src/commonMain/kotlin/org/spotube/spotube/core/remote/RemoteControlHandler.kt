@@ -17,6 +17,12 @@
 
 package org.spotube.spotube.core.remote
 
+import org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.combine
 import org.spotube.spotube.core.audioplayer.AudioPlayerInterface
 import org.spotube.spotube.core.audioplayer.AudioPlayerQueue
 import org.spotube.spotube.core.audioplayer.LoopState
@@ -121,6 +127,18 @@ class RemoteControlHandler(
                         broadcastState(session)
                     }
                 }
+                // Push the queue whenever it or the current entry changes on this device
+                // (track ended, skipped with the TV remote, queue edited here), not only after
+                // the controller's own commands, so its queue keeps the playing track marked.
+                launch {
+                    combine(
+                        audioPlayerQueue.queueFlow,
+                        audioPlayerQueue.currentQueueEntryFlow
+                    ) { queue, current -> queue to current }
+                        .distinctUntilChanged()
+                        .drop(1) // the initial queue was just sent above
+                        .collect { broadcastQueue(session) }
+                }
                 handleControlLoop(session)
             }
         } catch (e: Exception) {
@@ -169,7 +187,7 @@ class RemoteControlHandler(
     private suspend fun handleCommand(session: WebSocketServerSession, envelope: CommandEnvelope) {
         when (val command = envelope.command) {
             is RemoteControlCommand.Play -> {
-                handleCollectionSource(command.source, RemoteCollectionAction.Play, command.shuffle)
+                handleCollectionSource(command.source, RemoteCollectionAction.Play, command.shuffle, command.startTrack)
             }
             is RemoteControlCommand.Pause -> {
                 audioPlayer.pause()
@@ -245,6 +263,16 @@ class RemoteControlHandler(
             is RemoteControlCommand.PlayIndex -> {
                 audioPlayerQueue.jumpTo(command.index)
             }
+            is RemoteControlCommand.LoadQueue -> {
+                if (command.tracks.isNotEmpty()) {
+                    audioPlayerQueue.load(
+                        entries = command.tracks.map { QueueEntry.StreamingTrack(track = it, url = "") },
+                        autoPlay = command.autoPlay,
+                        startPosition = command.startIndex.coerceIn(0, command.tracks.lastIndex),
+                        collectionEntry = null)
+                    if (command.positionMs > 0) audioPlayer.seekWhenReady(command.positionMs)
+                }
+            }
             is RemoteControlCommand.RemoveFromQueue -> {
                 val queue = audioPlayerQueue.queueFlow.value
                 val entry = queue.firstOrNull { candidate ->
@@ -296,13 +324,18 @@ class RemoteControlHandler(
     private suspend fun handleCollectionSource(
         source: String,
         action: RemoteCollectionAction,
-        shuffle: Boolean = false) {
+        shuffle: Boolean = false,
+        startTrack: MetadataTrack? = null) {
         logger.d { "Remote collection $action for source: $source" }
         when {
             source.startsWith(COLLECTION_PLAYLIST_PREFIX) -> {
                 val id = source.removePrefix(COLLECTION_PLAYLIST_PREFIX)
                 when (action) {
-                    RemoteCollectionAction.Play -> collectionPlaybackHelper.playPlaylist(id, shuffle)
+                    RemoteCollectionAction.Play -> if (startTrack != null) {
+                        collectionPlaybackHelper.playPlaylistFromTrack(id, startTrack)
+                    } else {
+                        collectionPlaybackHelper.playPlaylist(id, shuffle)
+                    }
                     RemoteCollectionAction.AddToQueue -> collectionPlaybackHelper.addPlaylistToQueue(id)
                     RemoteCollectionAction.PlayNext -> collectionPlaybackHelper.playPlaylistNext(id)
                 }
@@ -311,7 +344,11 @@ class RemoteControlHandler(
             source.startsWith(COLLECTION_ALBUM_PREFIX) -> {
                 val id = source.removePrefix(COLLECTION_ALBUM_PREFIX)
                 when (action) {
-                    RemoteCollectionAction.Play -> collectionPlaybackHelper.playAlbum(id, shuffle)
+                    RemoteCollectionAction.Play -> if (startTrack != null) {
+                        collectionPlaybackHelper.playAlbumFromTrack(id, startTrack)
+                    } else {
+                        collectionPlaybackHelper.playAlbum(id, shuffle)
+                    }
                     RemoteCollectionAction.AddToQueue -> collectionPlaybackHelper.addAlbumToQueue(id)
                     RemoteCollectionAction.PlayNext -> collectionPlaybackHelper.playAlbumNext(id)
                 }
@@ -396,7 +433,8 @@ class RemoteControlHandler(
             artists = track.artists.joinToString(", ") { artist -> artist.name },
             album = track.album?.title,
             coverUrl = artworkUrl,
-            durationMs = track.durationMs)
+            durationMs = track.durationMs,
+            track = track)
 
         is QueueEntry.LocalTrack -> RemoteQueueEntry(
             mediaUrl = url,

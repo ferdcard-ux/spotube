@@ -18,6 +18,7 @@
 package org.spotube.spotube.modules.devices
 
 
+import org.spotube.spotube.core.ui.component.TvDialogFocus
 import org.spotube.millennium.composables.MillenniumDialogHeader
 import org.spotube.millennium.composables.MillenniumDialogTitle
 import org.spotube.millennium.composables.MillenniumDialogClose
@@ -88,70 +89,72 @@ fun PlayDestinationPickerHost() {
     }
 
     MillenniumDialog(visible = true, onDismissRequest = controller::dismissPicker) {
-        MillenniumDialogHeader {
-            MillenniumDialogTitle(stringResource(Res.string.devices_destination_title))
-            MillenniumDialogClose()
-        }
-        MillenniumDialogBody {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = stringResource(Res.string.devices_destination_prompt, actionLabel, pendingRequest.title),
-                style = AppTheme.typography.bodyMedium,
-                color = AppTheme.colors.onSurfaceVariant)
-
-            MillenniumListTile(
-                onClick = controller::playLocally,
+        TvDialogFocus {
+            MillenniumDialogHeader {
+                MillenniumDialogTitle(stringResource(Res.string.devices_destination_title))
+                MillenniumDialogClose()
+            }
+            MillenniumDialogBody {
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                leading = {
-                    MillenniumIcon(
-                        imageVector = Iconsax.IconsaxCd,
-                        contentDescription = null,
-                        tint = AppTheme.colors.primary)
-                },
-                title = {
-                    Text(
-                        text = stringResource(Res.string.devices_destination_this_device),
-                        style = AppTheme.typography.bodyLarge)
-                },
-                subtitle = {
-                    Text(
-                        text = stringResource(Res.string.devices_destination_this_device_subtitle),
-                        style = AppTheme.typography.bodySmall,
-                        color = AppTheme.colors.onSurfaceVariant)
-                })
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = stringResource(Res.string.devices_destination_prompt, actionLabel, pendingRequest.title),
+                    style = AppTheme.typography.bodyMedium,
+                    color = AppTheme.colors.onSurfaceVariant)
 
-            if (connectionState is ConnectionState.Connected) {
                 MillenniumListTile(
-                    onClick = controller::playOnRemote,
+                    onClick = controller::playLocally,
                     modifier = Modifier.fillMaxWidth(),
                     leading = {
                         MillenniumIcon(
-                            imageVector = Iconsax.IconsaxMirroringScreen,
+                            imageVector = Iconsax.IconsaxCd,
                             contentDescription = null,
                             tint = AppTheme.colors.primary)
                     },
                     title = {
                         Text(
-                            text = remoteDeviceName,
+                            text = stringResource(Res.string.devices_destination_this_device),
                             style = AppTheme.typography.bodyLarge)
                     },
                     subtitle = {
                         Text(
-                            text = stringResource(Res.string.devices_destination_remote_subtitle),
+                            text = stringResource(Res.string.devices_destination_this_device_subtitle),
                             style = AppTheme.typography.bodySmall,
                             color = AppTheme.colors.onSurfaceVariant)
                     })
-            }
 
-        }
-        }
-        MillenniumDialogFooter {
-            MillenniumButton(
-                onClick = controller::dismissPicker,
-                style = MillenniumButtonStyle.Quiet) {
-                Text(stringResource(Res.string.common_cancel))
+                if (connectionState is ConnectionState.Connected) {
+                    MillenniumListTile(
+                        onClick = controller::playOnRemote,
+                        modifier = Modifier.fillMaxWidth(),
+                        leading = {
+                            MillenniumIcon(
+                                imageVector = Iconsax.IconsaxMirroringScreen,
+                                contentDescription = null,
+                                tint = AppTheme.colors.primary)
+                        },
+                        title = {
+                            Text(
+                                text = remoteDeviceName,
+                                style = AppTheme.typography.bodyLarge)
+                        },
+                        subtitle = {
+                            Text(
+                                text = stringResource(Res.string.devices_destination_remote_subtitle),
+                                style = AppTheme.typography.bodySmall,
+                                color = AppTheme.colors.onSurfaceVariant)
+                        })
+                }
+
+            }
+            }
+            MillenniumDialogFooter {
+                MillenniumButton(
+                    onClick = controller::dismissPicker,
+                    style = MillenniumButtonStyle.Quiet) {
+                    Text(stringResource(Res.string.common_cancel))
+                }
             }
         }
     }
