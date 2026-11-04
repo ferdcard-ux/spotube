@@ -115,3 +115,9 @@ android/app/.cxx
 /bun.lock
 
 **/target/
+# Signing keys and keystores: never commit them (see docs/SIGNING.md)
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pepk
