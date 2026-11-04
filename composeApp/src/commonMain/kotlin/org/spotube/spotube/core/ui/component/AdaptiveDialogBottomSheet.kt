@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import com.composeunstyled.currentWindowWidthBreakpoint
 import org.spotube.millennium.adaptive.WindowBreakpoints
 import androidx.compose.ui.unit.dp
+import org.spotube.spotube.LocalIsTv
 import org.spotube.spotube.resources.iconsax.FluentDismiss
 import org.spotube.spotube.resources.iconsax.Iconsax
 import org.jetbrains.compose.resources.stringResource
@@ -64,7 +65,9 @@ fun AdaptiveDialogBottomSheet(
     modifier: Modifier = Modifier,
     actions: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit) {
-    val isLargeScreen = currentWindowWidthBreakpoint() isAtLeast WindowBreakpoints.Medium
+    // TV always uses the dialog presentation; bottom sheets assume touch/swipe.
+    val isLargeScreen = LocalIsTv.current ||
+        (currentWindowWidthBreakpoint() isAtLeast WindowBreakpoints.Medium)
 
     if (isLargeScreen) {
         MillenniumDialog(
@@ -72,17 +75,19 @@ fun AdaptiveDialogBottomSheet(
             onDismissRequest = onDismiss,
             modifier = modifier,
             paneTitle = dialogTitle ?: "") {
-            MillenniumDialogHeader {
-                if (dialogTitle != null) {
-                    MillenniumDialogTitle(text = dialogTitle, textStyle = AppTheme.typography.titleMedium)
-                } else {
-                    MillenniumDialogTitle { title?.invoke() }
+            TvDialogFocus {
+                MillenniumDialogHeader {
+                    if (dialogTitle != null) {
+                        MillenniumDialogTitle(text = dialogTitle, textStyle = AppTheme.typography.titleMedium)
+                    } else {
+                        MillenniumDialogTitle { title?.invoke() }
+                    }
+                    MillenniumDialogClose(
+                        contentDescription = stringResource(Res.string.common_close_dialog))
                 }
-                MillenniumDialogClose(
-                    contentDescription = stringResource(Res.string.common_close_dialog))
+                MillenniumDialogBody { content() }
+                actions?.let { MillenniumDialogFooter(content = { it() }) }
             }
-            MillenniumDialogBody { content() }
-            actions?.let { MillenniumDialogFooter(content = { it() }) }
         }
     } else {
         val sheetState = rememberModalBottomSheetState(initialDetent = SheetDetent.FullyExpanded)

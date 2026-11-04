@@ -312,7 +312,7 @@ class ArtistViewModel(
                     val existing = queue.find { entry ->
                         (entry as? QueueEntry.StreamingTrack)?.track?.matchesTrack(track) == true
                     }
-                    if (existing != null) {
+                    if (existing != null && !remotePlaybackController.isRemoteActive()) {
                         // Already in the local queue: move it to the next position
                         audioPlayerQueue.removeFromQueue(existing)
                         audioPlayerQueue.addAllAfterCurrent(listOf(QueueEntry.StreamingTrack(track = track, url = "")))

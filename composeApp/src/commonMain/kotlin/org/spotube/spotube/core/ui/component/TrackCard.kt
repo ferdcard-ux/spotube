@@ -17,6 +17,7 @@
 
 package org.spotube.spotube.core.ui.component
 
+import org.spotube.spotube.core.remote.RemotePlaybackController
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -51,28 +52,15 @@ import org.koin.compose.koinInject
 fun TrackCard(
     track: MetadataTrack,
     modifier: Modifier = Modifier,
-    audioPlayerQueue: AudioPlayerQueue = koinInject()) {
-    val scope = rememberCoroutineScope()
-    val queueEntry = QueueEntry.StreamingTrack(track = track, url = "")
+    remotePlaybackController: RemotePlaybackController = koinInject()) {
 
     PlayableCard(
         title = track.title,
         subtitle = track.artists.joinToString { it.name },
         imageURL = (track.album?.thumbnails ?: track.thumbnails)?.firstOrNull()?.url,
-        onPlay = {
-            scope.launch {
-                audioPlayerQueue.load(
-                    entries = listOf(queueEntry),
-                    autoPlay = true,
-                    startPosition = 0,
-                    collectionEntry = null)
-            }
-        },
-        onAddToQueue = {
-            scope.launch {
-                audioPlayerQueue.addToQueue(queueEntry)
-            }
-        },
+        // Both go to the active device (this one or the connected TV).
+        onPlay = { remotePlaybackController.playTracks(listOf(track)) },
+        onAddToQueue = { remotePlaybackController.requestTrackAddToQueue(track) },
         modifier = modifier
     )
 }

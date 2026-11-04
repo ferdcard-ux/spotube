@@ -15,11 +15,18 @@
 
 [versions]
 android-compileSdk = "37"
+# SDK 37 ships only as `platforms;android-37.0`; AGP needs the minor level to resolve it.
+android-compileSdkMinor = "0"
 android-minSdk = "28"
 android-targetSdk = "37"
 agp = "9.1.0"
 androidx-activity = "1.13.0"
 androidx-lifecycle = "2.10.0"
+# Android TV. Pinned to the latest stable artifacts published on Google Maven.
+# Declared for the :AndroidTV module; the TV UI itself is built on Compose Foundation so it
+# shares the app's single Millennium-backed theme (see AndroidTV/PLAN.md §3.5).
+androidx-tv-foundation = "1.0.0"
+androidx-tv-material = "1.1.0"
 appdirs = "1.5.0"
 cache4k = "0.14.0"
 carApp = "1.7.0"
@@ -48,6 +55,7 @@ vlcj = "4.12.1"
 vlcjNative = "4.12.0"
 ziplineVersion = "1.28.0"
 ktor = "3.5.1"
+zxing = "3.5.3"
 dnssdkt = "1.1.0"
 filekit = "0.14.2"
 compose-webview = "0.1.0-SNAPSHOT"
@@ -100,6 +108,7 @@ compose-components-resources = { module = "org.jetbrains.compose.components:comp
 compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 kotlinx-coroutinesSwing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization-json" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 ktor-server-cio = { module = "io.ktor:ktor-server-cio", version.ref = "ktor" }
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
 ktor-server-websockets = { module = "io.ktor:ktor-server-websockets", version.ref = "ktor" }
@@ -157,6 +166,8 @@ reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reo
 media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
 media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
+androidx-tv-foundation = { module = "androidx.tv:tv-foundation", version.ref = "androidx-tv-foundation" }
+androidx-tv-material = { module = "androidx.tv:tv-material", version.ref = "androidx-tv-material" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
@@ -165,6 +176,7 @@ composeHotReload = { id = "org.jetbrains.compose.hot-reload", version.ref = "com
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 jetbrainsKotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 androidKotlinMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }

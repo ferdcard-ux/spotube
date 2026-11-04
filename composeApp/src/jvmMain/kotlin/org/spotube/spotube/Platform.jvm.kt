@@ -17,6 +17,7 @@
 
 package org.spotube.spotube
 
+import androidx.compose.runtime.Composable
 import java.awt.Desktop
 import java.net.URI
 
@@ -37,6 +38,11 @@ class JVMPlatform : Platform {
 }
 
 actual fun getPlatform(): Platform = JVMPlatform()
+
+actual fun isTelevision(): Boolean = false
+
+@Composable
+actual fun rememberIsTv(): Boolean = false
 
 actual fun openUrlInBrowser(url: String) {
     // The app runs on a native (Tao) window, not an AWT frame, so java.awt.Desktop is not a

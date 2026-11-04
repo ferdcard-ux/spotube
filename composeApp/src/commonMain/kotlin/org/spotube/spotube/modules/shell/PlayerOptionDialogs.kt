@@ -18,7 +18,9 @@
 package org.spotube.spotube.modules.shell
 
 
+import org.spotube.spotube.core.ui.component.TvDialogFocus
 import org.spotube.millennium.composables.MillenniumDialogHeader
+import org.spotube.spotube.core.ui.TvTextFieldGate
 import org.spotube.millennium.composables.MillenniumDialogTitle
 import org.spotube.millennium.composables.MillenniumDialogClose
 import org.spotube.millennium.composables.MillenniumDialogBody
@@ -134,44 +136,48 @@ private fun SleepTimerDialog(
     onCancelTimer: () -> Unit,
     onDismiss: () -> Unit) {
     MillenniumDialog(visible = true, onDismissRequest = onDismiss) {
-        MillenniumDialogHeader {
-            MillenniumDialogTitle(stringResource(Res.string.player_sleep_timer))
-            MillenniumDialogClose()
-        }
-        MillenniumDialogBody {
-            if (remainingMs != null) {
-                Text(
-                    text = stringResource(Res.string.player_sleep_timer_remaining, formatRemainingTime(remainingMs)),
-                    style = AppTheme.typography.bodyMedium,
-                    color = AppTheme.colors.primary)
-            } else {
-                Text(
-                    text = stringResource(Res.string.player_sleep_timer_description),
-                    style = AppTheme.typography.bodyMedium)
+        TvDialogFocus {
+            MillenniumDialogHeader {
+                MillenniumDialogTitle(stringResource(Res.string.player_sleep_timer))
+                MillenniumDialogClose()
             }
-            val minutesState = rememberTextFieldState(minutes)
-            LaunchedEffect(minutesState.text) {
-                onMinutesChange(minutesState.text.toString())
+            MillenniumDialogBody {
+                if (remainingMs != null) {
+                    Text(
+                        text = stringResource(Res.string.player_sleep_timer_remaining, formatRemainingTime(remainingMs)),
+                        style = AppTheme.typography.bodyMedium,
+                        color = AppTheme.colors.primary)
+                } else {
+                    Text(
+                        text = stringResource(Res.string.player_sleep_timer_description),
+                        style = AppTheme.typography.bodyMedium)
+                }
+                val minutesState = rememberTextFieldState(minutes)
+                LaunchedEffect(minutesState.text) {
+                    onMinutesChange(minutesState.text.toString())
+                }
+                TvTextFieldGate(modifier = Modifier.fillMaxWidth()) { fieldModifier ->
+                    MillenniumTextField(
+                        state = minutesState,
+                        label = stringResource(Res.string.player_sleep_timer_minutes_label),
+                        placeholder = stringResource(Res.string.player_sleep_timer_minutes_placeholder),
+                        modifier = fieldModifier.fillMaxWidth())
+                }
             }
-            MillenniumTextField(
-                state = minutesState,
-                label = stringResource(Res.string.player_sleep_timer_minutes_label),
-                placeholder = stringResource(Res.string.player_sleep_timer_minutes_placeholder),
-                modifier = Modifier.fillMaxWidth())
-        }
-        MillenniumDialogFooter {
-            if (remainingMs != null) {
+            MillenniumDialogFooter {
+                if (remainingMs != null) {
+                    MillenniumButton(
+                        onClick = onCancelTimer,
+                        style = MillenniumButtonStyle.Quiet) { Text(stringResource(Res.string.player_sleep_timer_cancel)) }
+                }
                 MillenniumButton(
-                    onClick = onCancelTimer,
-                    style = MillenniumButtonStyle.Quiet) { Text(stringResource(Res.string.player_sleep_timer_cancel)) }
-            }
-            MillenniumButton(
-                onClick = onDismiss,
-                style = MillenniumButtonStyle.Secondary) { Text(stringResource(Res.string.common_close)) }
-            MillenniumButton(
-                onClick = onStart,
-                enabled = minutes.toLongOrNull()?.let { it in 1L..600L } == true) {
-                Text(stringResource(Res.string.player_sleep_timer_start))
+                    onClick = onDismiss,
+                    style = MillenniumButtonStyle.Secondary) { Text(stringResource(Res.string.common_close)) }
+                MillenniumButton(
+                    onClick = onStart,
+                    enabled = minutes.toLongOrNull()?.let { it in 1L..600L } == true) {
+                    Text(stringResource(Res.string.player_sleep_timer_start))
+                }
             }
         }
     }
@@ -182,149 +188,151 @@ private fun TrackDetailsDialog(
     details: PlayerTrackDetails,
     onDismiss: () -> Unit) {
     MillenniumDialog(visible = true, onDismissRequest = onDismiss) {
-        MillenniumDialogHeader {
-            MillenniumDialogTitle(stringResource(Res.string.player_track_details))
-            MillenniumDialogClose()
-        }
-        MillenniumDialogBody(contentSpacing = 14.dp) {
-            Text(
-                details.track.title,
-                style = AppTheme.typography.bodyMedium,
-                color = AppTheme.colors.onSurfaceVariant)
-            if (details.isLoading) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
-                    horizontalArrangement = Arrangement.Center) {
-                    MillenniumMarqueeProgress(modifier = Modifier.fillMaxWidth())
-                }
+        TvDialogFocus {
+            MillenniumDialogHeader {
+                MillenniumDialogTitle(stringResource(Res.string.player_track_details))
+                MillenniumDialogClose()
             }
-
-            if (details.localCacheEntry != null) {
-                LocalCacheBanner(details.localCacheEntry)
-            }
-            if (details.localCacheEntry == null && details.activeStreamMatchesPreference == false) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .millenniumSurface(
-                            background = SolidColor(AppTheme.colors.tertiaryContainer),
-                            shape = RoundedCornerShape(12.dp))) {
-                    Text(
-                        stringResource(Res.string.player_track_details_stream_mismatch),
-                        modifier = Modifier.padding(12.dp),
-                        style = AppTheme.typography.bodySmall,
-                        color = AppTheme.colors.onTertiaryContainer)
-                }
-            }
-
-            TrackMetadataSection(details.track)
-
-            Text(
-                stringResource(Res.string.player_track_details_matched_source),
-                style = AppTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold)
-            val source = details.matchedSource
-            if (details.isLoading) {
-                Text(stringResource(Res.string.player_track_details_loading_source), style = AppTheme.typography.bodySmall)
-            } else if (source == null) {
+            MillenniumDialogBody(contentSpacing = 14.dp) {
                 Text(
-                    details.error ?: details.errorRes?.let { stringResource(it) } ?: if (details.localCacheEntry != null) {
-                        stringResource(Res.string.player_track_details_source_not_needed)
-                    } else {
-                        stringResource(Res.string.player_track_details_no_source)
-                    },
-                    style = AppTheme.typography.bodySmall,
+                    details.track.title,
+                    style = AppTheme.typography.bodyMedium,
                     color = AppTheme.colors.onSurfaceVariant)
-            } else {
-                DetailRow(stringResource(Res.string.player_track_details_title), source.title)
-                DetailRow(stringResource(Res.string.player_track_details_id), source.id)
-                DetailRow(stringResource(Res.string.media_artist), source.artist)
-                DetailRow(stringResource(Res.string.player_track_details_album), source.album)
-                DetailRow(stringResource(Res.string.player_track_details_confidence), "${(source.confidence * 100).toInt()}%")
-                DetailRow(stringResource(Res.string.player_track_details_external_uri), source.externalUri)
-            }
+                if (details.isLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
+                        horizontalArrangement = Arrangement.Center) {
+                        MillenniumMarqueeProgress(modifier = Modifier.fillMaxWidth())
+                    }
+                }
 
-            Text(
-                stringResource(Res.string.player_track_details_available_streams),
-                style = AppTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold)
-            when {
-                details.localCacheEntry != null && details.streams.isEmpty() -> Text(
-                    stringResource(Res.string.player_track_details_served_from_cache_description),
-                    style = AppTheme.typography.bodySmall,
-                    color = AppTheme.colors.onSurfaceVariant)
-
-                details.isLoading -> Text(stringResource(Res.string.player_track_details_loading_streams), style = AppTheme.typography.bodySmall)
-                details.streams.isEmpty() -> Text(
-                    details.error ?: details.errorRes?.let { stringResource(it) } ?: stringResource(Res.string.player_track_details_no_streams),
-                    style = AppTheme.typography.bodySmall,
-                    color = AppTheme.colors.onSurfaceVariant)
-
-                else -> details.streams.forEach { stream ->
-                    val isSelected = stream == details.preferredStream
+                if (details.localCacheEntry != null) {
+                    LocalCacheBanner(details.localCacheEntry)
+                }
+                if (details.localCacheEntry == null && details.activeStreamMatchesPreference == false) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .millenniumSurface(
-                                background = SolidColor(
-                                    if (isSelected) {
-                                        AppTheme.colors.primaryContainer
-                                    } else {
-                                        AppTheme.colors.surfaceContainerHigh
-                                    }),
+                                background = SolidColor(AppTheme.colors.tertiaryContainer),
                                 shape = RoundedCornerShape(12.dp))) {
-                        Column(
+                        Text(
+                            stringResource(Res.string.player_track_details_stream_mismatch),
                             modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(
-                                    text = streamFormatAndQuality(stream),
-                                    style = AppTheme.typography.bodyMedium,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) {
-                                        AppTheme.colors.onPrimaryContainer
-                                    } else {
-                                        AppTheme.colors.onSurface
-                                    },
-                                    modifier = Modifier.weight(1f))
-                                if (isSelected) {
-                                    MillenniumIcon(
-                                        imageVector = Iconsax.IconsaxCheckCircle,
-                                        contentDescription = stringResource(Res.string.player_track_details_selected_stream_content_description),
-                                        tint = AppTheme.colors.primary)
+                            style = AppTheme.typography.bodySmall,
+                            color = AppTheme.colors.onTertiaryContainer)
+                    }
+                }
+
+                TrackMetadataSection(details.track)
+
+                Text(
+                    stringResource(Res.string.player_track_details_matched_source),
+                    style = AppTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold)
+                val source = details.matchedSource
+                if (details.isLoading) {
+                    Text(stringResource(Res.string.player_track_details_loading_source), style = AppTheme.typography.bodySmall)
+                } else if (source == null) {
+                    Text(
+                        details.error ?: details.errorRes?.let { stringResource(it) } ?: if (details.localCacheEntry != null) {
+                            stringResource(Res.string.player_track_details_source_not_needed)
+                        } else {
+                            stringResource(Res.string.player_track_details_no_source)
+                        },
+                        style = AppTheme.typography.bodySmall,
+                        color = AppTheme.colors.onSurfaceVariant)
+                } else {
+                    DetailRow(stringResource(Res.string.player_track_details_title), source.title)
+                    DetailRow(stringResource(Res.string.player_track_details_id), source.id)
+                    DetailRow(stringResource(Res.string.media_artist), source.artist)
+                    DetailRow(stringResource(Res.string.player_track_details_album), source.album)
+                    DetailRow(stringResource(Res.string.player_track_details_confidence), "${(source.confidence * 100).toInt()}%")
+                    DetailRow(stringResource(Res.string.player_track_details_external_uri), source.externalUri)
+                }
+
+                Text(
+                    stringResource(Res.string.player_track_details_available_streams),
+                    style = AppTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold)
+                when {
+                    details.localCacheEntry != null && details.streams.isEmpty() -> Text(
+                        stringResource(Res.string.player_track_details_served_from_cache_description),
+                        style = AppTheme.typography.bodySmall,
+                        color = AppTheme.colors.onSurfaceVariant)
+
+                    details.isLoading -> Text(stringResource(Res.string.player_track_details_loading_streams), style = AppTheme.typography.bodySmall)
+                    details.streams.isEmpty() -> Text(
+                        details.error ?: details.errorRes?.let { stringResource(it) } ?: stringResource(Res.string.player_track_details_no_streams),
+                        style = AppTheme.typography.bodySmall,
+                        color = AppTheme.colors.onSurfaceVariant)
+
+                    else -> details.streams.forEach { stream ->
+                        val isSelected = stream == details.preferredStream
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .millenniumSurface(
+                                    background = SolidColor(
+                                        if (isSelected) {
+                                            AppTheme.colors.primaryContainer
+                                        } else {
+                                            AppTheme.colors.surfaceContainerHigh
+                                        }),
+                                    shape = RoundedCornerShape(12.dp))) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(
+                                        text = streamFormatAndQuality(stream),
+                                        style = AppTheme.typography.bodyMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) {
+                                            AppTheme.colors.onPrimaryContainer
+                                        } else {
+                                            AppTheme.colors.onSurface
+                                        },
+                                        modifier = Modifier.weight(1f))
+                                    if (isSelected) {
+                                        MillenniumIcon(
+                                            imageVector = Iconsax.IconsaxCheckCircle,
+                                            contentDescription = stringResource(Res.string.player_track_details_selected_stream_content_description),
+                                            tint = AppTheme.colors.primary)
+                                    }
                                 }
-                            }
-                            Text(
-                                "${stream.protocol} • ${stream.codec} • ${stream.container}",
-                                style = AppTheme.typography.labelSmall,
-                                color = AppTheme.colors.onSurfaceVariant)
-                            Text(
-                                stream.url,
-                                style = AppTheme.typography.labelSmall,
-                                color = AppTheme.colors.onSurfaceVariant)
-                            if (isSelected) {
                                 Text(
-                                    stringResource(Res.string.player_track_details_matches_preference),
+                                    "${stream.protocol} • ${stream.codec} • ${stream.container}",
                                     style = AppTheme.typography.labelSmall,
-                                    color = AppTheme.colors.primary)
+                                    color = AppTheme.colors.onSurfaceVariant)
+                                Text(
+                                    stream.url,
+                                    style = AppTheme.typography.labelSmall,
+                                    color = AppTheme.colors.onSurfaceVariant)
+                                if (isSelected) {
+                                    Text(
+                                        stringResource(Res.string.player_track_details_matches_preference),
+                                        style = AppTheme.typography.labelSmall,
+                                        color = AppTheme.colors.primary)
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            details.activeStreamUrl?.let { activeUrl ->
-                DetailRow(stringResource(Res.string.player_track_details_active_url), activeUrl)
-            }
+                details.activeStreamUrl?.let { activeUrl ->
+                    DetailRow(stringResource(Res.string.player_track_details_active_url), activeUrl)
+                }
 
-        }
-        MillenniumDialogFooter {
-            MillenniumButton(
-                onClick = onDismiss,
-                style = MillenniumButtonStyle.Secondary) { Text(stringResource(Res.string.common_close)) }
+            }
+            MillenniumDialogFooter {
+                MillenniumButton(
+                    onClick = onDismiss,
+                    style = MillenniumButtonStyle.Secondary) { Text(stringResource(Res.string.common_close)) }
+            }
         }
     }
 }

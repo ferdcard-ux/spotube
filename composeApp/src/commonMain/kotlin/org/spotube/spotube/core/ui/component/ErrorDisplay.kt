@@ -86,7 +86,7 @@ fun ErrorDisplay(
     if (authState.loginRequired) {
         LoginRequiredDisplay(
             pluginName = authState.pluginName,
-            onLogin = authViewModel::login,
+            onLogin = authViewModel::startLogin,
             isLoggingIn = authState.isLoggingIn,
             modifier = modifier)
         return
@@ -210,46 +210,48 @@ private fun ErrorLogDialog(
     val clipboardManager = LocalClipboardManager.current
 
     MillenniumDialog(visible = true, onDismissRequest = onDismiss) {
-        MillenniumDialogHeader {
-            MillenniumDialogTitle(
-                text = stringResource(Res.string.error_full_log_title),
-                textStyle = AppTheme.typography.titleMedium)
-            MillenniumIconButton(
-                onClick = {
-                    clipboardManager.setText(AnnotatedString(errorMessage))
-                },
-                style = MillenniumIconButtonStyle.Quiet) {
-                MillenniumIcon(
-                    imageVector = FeatherIcons.Copy,
-                    contentDescription = stringResource(Res.string.error_copy_to_clipboard))
+        TvDialogFocus {
+            MillenniumDialogHeader {
+                MillenniumDialogTitle(
+                    text = stringResource(Res.string.error_full_log_title),
+                    textStyle = AppTheme.typography.titleMedium)
+                MillenniumIconButton(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(errorMessage))
+                    },
+                    style = MillenniumIconButtonStyle.Quiet) {
+                    MillenniumIcon(
+                        imageVector = FeatherIcons.Copy,
+                        contentDescription = stringResource(Res.string.error_copy_to_clipboard))
+                }
+                MillenniumDialogClose()
             }
-            MillenniumDialogClose()
-        }
-        MillenniumDialogBody(scrollable = false) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(400.dp)
-                    .clip(AppTheme.shapes.small)
-                    .background(AppTheme.colors.surfaceContainerHighest.copy(alpha = 0.3f))) {
-                SelectionContainer {
-                    Text(
-                        text = errorMessage,
-                        style = AppTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace),
-                        color = AppTheme.colors.onSurfaceVariant,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(12.dp))
+            MillenniumDialogBody(scrollable = false) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(400.dp)
+                        .clip(AppTheme.shapes.small)
+                        .background(AppTheme.colors.surfaceContainerHighest.copy(alpha = 0.3f))) {
+                    SelectionContainer {
+                        Text(
+                            text = errorMessage,
+                            style = AppTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace),
+                            color = AppTheme.colors.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(12.dp))
+                    }
                 }
             }
-        }
-        MillenniumDialogFooter {
-            MillenniumButton(
-                onClick = onDismiss,
-                style = MillenniumButtonStyle.Secondary) {
-                Text(stringResource(Res.string.common_close))
+            MillenniumDialogFooter {
+                MillenniumButton(
+                    onClick = onDismiss,
+                    style = MillenniumButtonStyle.Secondary) {
+                    Text(stringResource(Res.string.common_close))
+                }
             }
         }
     }

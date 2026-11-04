@@ -51,6 +51,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.composeunstyled.currentWindowWidthBreakpoint
 import org.spotube.millennium.theme.MillenniumTheme
@@ -62,6 +69,7 @@ import com.composeunstyled.SheetDetent
 import com.composeunstyled.rememberModalBottomSheetState
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.Check
+import org.spotube.spotube.LocalIsTv
 import org.spotube.spotube.core.ui.theming.AppTheme
 import org.spotube.spotube.resources.iconsax.Iconsax
 import org.spotube.spotube.resources.iconsax.Iconsax3DotsMore
@@ -115,24 +123,69 @@ fun AdaptiveDropdownBottomSheet(
     menuMinWidth: Dp = 200.dp,
     header: @Composable (() -> Unit)? = null,
     headerDisplayMode: HeaderDisplayMode = HeaderDisplayMode.Always,
-    filter: ((AdaptiveMenuItem, String) -> Boolean)? = null) {
-    var expanded by remember { mutableStateOf(false) }
-    val isLargeScreen = currentWindowWidthBreakpoint() isAtLeast WindowBreakpoints.Medium
+    filter: ((AdaptiveMenuItem, String) -> Boolean)? = null,
+    expanded: Boolean? = null,
+    onExpandedChange: ((Boolean) -> Unit)? = null) {
+    // Optionally hoisted, so a parent (e.g. a whole settings row on TV) can open the menu.
+    var internalExpanded by remember { mutableStateOf(false) }
+    val isExpanded = expanded ?: internalExpanded
+    val setExpanded: (Boolean) -> Unit = { value ->
+        if (onExpandedChange != null) onExpandedChange(value) else internalExpanded = value
+    }
+    // TV always needs the non-touch presentation, regardless of the reported window width.
+    val isTv = LocalIsTv.current
+    val isLargeScreen = isTv ||
+        (currentWindowWidthBreakpoint() isAtLeast WindowBreakpoints.Medium)
+    val focusManager = LocalFocusManager.current
 
-    Box(modifier = modifier) {
-        if (isLargeScreen) {
+    // The unstyled dropdown anchor opens its menu on Up/Down (desktop combobox pattern). On TV those
+    // are the navigation keys, so moving through a trigger would trap focus in the popup. Preview
+    // events reach this parent before the anchor: move focus instead; OK still opens the menu.
+    val tvKeys = if (isTv) {
+        Modifier.onPreviewKeyEvent { event ->
+            val direction = when (event.key) {
+                Key.DirectionUp -> FocusDirection.Up
+                Key.DirectionDown -> FocusDirection.Down
+                else -> null
+            }
+            // Only while closed: once open, Up/Down must walk the menu items.
+            if (direction != null && !isExpanded && event.type == KeyEventType.KeyDown) {
+                focusManager.moveFocus(direction)
+                true
+            } else {
+                false
+            }
+        }
+    } else {
+        Modifier
+    }
+
+    Box(modifier = modifier.then(tvKeys)) {
+        if (isTv) {
+            trigger { setExpanded(true) }
+            if (isExpanded) {
+                TvMenuDialog(
+                    items = items,
+                    onDismiss = { setExpanded(false) },
+                    header = if (header != null && headerDisplayMode != HeaderDisplayMode.OnlyInBottomSheet) {
+                        header
+                    } else {
+                        null
+                    })
+            }
+        } else if (isLargeScreen) {
             DesktopDropdownMenu(
-                expanded = expanded,
-                onExpandedChange = { expanded = it },
+                expanded = isExpanded,
+                onExpandedChange = setExpanded,
                 items = items,
                 menuMinWidth = menuMinWidth,
                 filter = filter,
-                trigger = { trigger { expanded = true } })
+                trigger = { trigger { setExpanded(true) } })
         } else {
-            trigger { expanded = true }
-            if (expanded) {
+            trigger { setExpanded(true) }
+            if (isExpanded) {
                 AdaptiveBottomSheetContent(
-                    onDismiss = { expanded = false },
+                    onDismiss = { setExpanded(false) },
                     items = items,
                     header = if (header != null && (headerDisplayMode == HeaderDisplayMode.Always || headerDisplayMode == HeaderDisplayMode.OnlyInBottomSheet)) {
                         header
@@ -296,7 +349,6 @@ private fun DesktopDropdownMenu(
     }
     val hasLeading = items.any { it.icon != null || it.leadingContent != null }
     val iconSize = MillenniumTheme.dropdownMenuTheme.states.default.iconSize
-
     MillenniumDropdownMenu(
         expanded = expanded,
         onExpandedChange = onExpandedChange,

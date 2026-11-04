@@ -18,7 +18,10 @@
 package org.spotube.spotube.core.ui.component
 
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import org.spotube.millennium.composables.MillenniumIcon
+import org.spotube.spotube.core.ui.tvFocusRing
 import org.spotube.millennium.composables.MillenniumIconButton
 import org.spotube.millennium.composables.MillenniumIconButtonStyle
 import org.spotube.millennium.composables.MillenniumModalBottomSheet
@@ -149,7 +152,9 @@ fun TrackOptionsBottomSheet(
         state = sheetState,
         contentPadding = PaddingValues(top = 10.dp, bottom = 8.dp),
         contentSpacing = 4.dp) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        // Scrollable: on short screens (TV) the last options ("Go to album") were cut off and
+        // D-pad focus could not reach them.
+        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             TrackOptionsSheetHeader(track = track)
 
             Column(
@@ -173,6 +178,7 @@ fun TrackOptionsBottomSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .tvFocusRing(AppTheme.shapes.medium)
                             .clickable(
                                 enabled = item.enabled,
                                 onClick = item.onClick)

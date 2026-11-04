@@ -17,6 +17,10 @@
 
 package org.spotube.spotube.modules.plugin
 
+import org.spotube.spotube.isTelevision
+import org.spotube.spotube.core.navigation.NavigationCommands
+import org.spotube.spotube.core.navigation.Routes
+import org.koin.core.component.inject
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import org.spotube.spotube.core.di.injectLogger
@@ -51,6 +55,7 @@ class MetadataAuthViewModel(
     private val pluginManager: PluginManager) : ViewModel(), KoinComponent {
     private val logger by injectLogger<MetadataAuthViewModel>()
     private val isLoggingIn = MutableStateFlow(false)
+    private val navigationCommands: NavigationCommands by inject()
 
     val uiState: StateFlow<MetadataAuthUiState> = combine(
         pluginManager.selectedMetadataPlugin.flatMapLatest { service ->
@@ -74,6 +79,18 @@ class MetadataAuthViewModel(
             emit(false)
         } else {
             service.loggedInFlow.collect { emit(!it) }
+        }
+    }
+
+    /**
+     * The sign-in button: on TV opens the QR login (sign in by scanning with a phone, with the
+     * web login as a fallback there); elsewhere starts the plugin's web login directly.
+     */
+    fun startLogin() {
+        if (isTelevision()) {
+            navigationCommands.navigateTo(Routes.QrLogin)
+        } else {
+            login()
         }
     }
 

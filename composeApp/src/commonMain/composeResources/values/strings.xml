@@ -155,6 +155,12 @@
     <string name="settings_accent_metallic_slate">Metallic Slate</string>
 
     <string name="settings_appearance_title">Look &amp; feel</string>
+    <string name="settings_tv_scale_title">Content size (TV)</string>
+    <string name="settings_tv_scale_subtitle_current">How large screens are drawn on the TV. Current: %1$s</string>
+    <string name="settings_tv_scale_auto">Automatic</string>
+    <string name="settings_tv_scale_percent">%1$d %</string>
+    <string name="settings_keep_screen_on_title">Keep screen on</string>
+    <string name="settings_keep_screen_on_subtitle">Prevents the screensaver and sleep while Spotube is on screen.</string>
     <string name="settings_appearance_subtitle_current">Surface material and accent. Current: %1$s · %2$s</string>
     <string name="settings_appearance_dialog_title">Look &amp; feel</string>
     <string name="settings_appearance_dialog_description">Pick a surface material, then an accent that pairs with it. Every option is a curated combination.</string>
@@ -975,4 +981,63 @@
     <string name="media_browser_featured">Featured</string>
     <string name="media_browser_saved_tracks">Saved Tracks</string>
     <string name="media_browser_top_tracks">Top Tracks</string>
+
+    <!-- Android TV -->
+    <string name="tv_seek_backward">Rewind 10 seconds</string>
+    <string name="tv_seek_forward">Forward 10 seconds</string>
+    <string name="tv_seek_bar">Playback position. Left/right seeks 10 seconds</string>
+    <string name="tv_keyboard_show">Open keyboard</string>
+    <string name="tv_keyboard_hide">Close keyboard</string>
+    <string name="tv_keyboard_clear">Clear</string>
+    <string name="tv_keyboard_backspace">Backspace</string>
+    <string name="tv_keyboard_space">Space</string>
+    <string name="tv_keyboard_search">Search</string>
+
+    <!-- Profiles -->
+    <string name="profiles_title">Profiles</string>
+    <string name="profiles_description">Each profile keeps its own accounts, queue and blacklist. Settings and installed plugins are shared. Switching profile restarts the app.</string>
+    <string name="profiles_main_name">Main</string>
+    <string name="profiles_active">Active profile</string>
+    <string name="profiles_switch_hint">Select to switch to this profile</string>
+    <string name="profiles_add">Add profile</string>
+    <string name="profiles_rename">Rename profile</string>
+    <string name="profiles_delete">Delete profile</string>
+    <string name="profiles_delete_confirm">Delete the profile “%1$s” and its saved accounts? This cannot be undone.</string>
+    <string name="profiles_name_label">Profile name</string>
+    <string name="profiles_accounts">Accounts of this profile</string>
+    <string name="profiles_restart_required">The profile was changed. Close and reopen Spotube to use it.</string>
+    <string name="profiles_rail_label">Profile</string>
+
+    <!-- QR login -->
+    <string name="qr_login_title">Sign in with your phone</string>
+    <string name="qr_login_step_1">1. On your phone, open Spotube and sign in to Spotify.</string>
+    <string name="qr_login_step_2">2. Scan this code with your phone camera.</string>
+    <string name="qr_login_step_3">3. Confirm on the phone to send your session to this TV.</string>
+    <string name="qr_login_note">The phone and the TV must be on the same Wi-Fi network. The session travels encrypted and no password is sent.</string>
+    <string name="qr_login_starting">Preparing the code…</string>
+    <string name="qr_login_waiting">Waiting for the phone at %1$s…</string>
+    <string name="qr_login_received">Session received from %1$s. Restarting…</string>
+    <string name="qr_login_restart_required">Session received from %1$s. Close and reopen Spotube to use it.</string>
+    <string name="qr_login_unavailable">The code cannot be shown: this device is not connected to a local network.</string>
+    <string name="qr_login_plugin_missing">%1$s sent a session for a plugin this TV does not have installed.</string>
+    <string name="qr_login_use_web">Sign in on this TV instead</string>
+    <string name="qr_login_page_title">Spotube sign-in</string>
+    <string name="qr_login_page_body">Opening Spotube on this phone to send your session to the TV. If it does not open, install Spotube, sign in and scan the code again.</string>
+    <string name="qr_login_page_open">Open Spotube</string>
+    <string name="qr_login_send_title">Send session to TV</string>
+    <string name="qr_login_send_confirm">Send your %1$s session to the TV at %2$s? The TV will use your account.</string>
+    <string name="qr_login_send_action">Send</string>
+    <string name="qr_login_send_sending">Sending…</string>
+    <string name="qr_login_send_sent">Session sent. The TV will restart with your account.</string>
+    <string name="qr_login_send_not_signed_in">Sign in to Spotube on this phone, then scan the code again.</string>
+    <string name="qr_login_send_failed">Could not send it. Check that the phone and the TV are on the same network and scan the code again.</string>
+    <string name="qr_login_send_unsupported">This device does not support QR sign-in.</string>
+
+    <!-- Playback device -->
+    <string name="playback_device_button">Playback device</string>
+    <string name="playback_device_picker_title">Play on</string>
+    <string name="playback_device_this_device">This device</string>
+    <string name="playback_device_playing_on">Playing on %1$s</string>
+    <string name="playback_device_transfer_note">Switching moves the queue and the current position; the other device pauses.</string>
+    <string name="playback_device_collapse">Minimize player</string>
 </resources>

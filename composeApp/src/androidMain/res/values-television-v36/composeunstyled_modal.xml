@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 36+ variant of values-television/composeunstyled_modal.xml: keeps the library's v36
+     window animation, which this override would otherwise hide. -->
+<resources>
+    <style name="Modal" parent="Modal.Base">
+        <item name="android:windowMinWidthMajor">100%</item>
+        <item name="android:windowMinWidthMinor">100%</item>
+        <item name="android:windowAnimationStyle">@style/Animation.HideIme</item>
+    </style>
+</resources>

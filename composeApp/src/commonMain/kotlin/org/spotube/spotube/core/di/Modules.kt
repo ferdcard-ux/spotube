@@ -17,6 +17,8 @@
 
 package org.spotube.spotube.core.di
 
+import org.spotube.spotube.modules.devices.PlaybackDeviceViewModel
+import org.spotube.spotube.core.remote.PlaybackDeviceManager
 import org.koin.core.module.dsl.onClose
 import org.spotube.spotube.core.network.HttpClientFactory
 import co.touchlab.kermit.Logger
@@ -25,6 +27,11 @@ import org.spotube.spotube.core.audioplayer.AudioPlayerQueueRepository
 import org.spotube.spotube.core.audioplayer.DeviceAudioPlayerQueue
 import org.spotube.spotube.core.audioplayer.QueueStateRepository
 import org.spotube.spotube.core.db.Database
+import org.spotube.spotube.core.profile.ProfileStore
+import org.spotube.spotube.modules.profiles.ProfilesViewModel
+import org.spotube.spotube.core.qrlogin.QrLoginInbox
+import org.spotube.spotube.modules.qrlogin.QrLoginReceiveViewModel
+import org.spotube.spotube.modules.qrlogin.QrLoginSendViewModel
 import org.spotube.spotube.core.discovery.DeviceDiscoveryService
 import org.spotube.spotube.core.discord.DiscordRpcService
 import org.spotube.spotube.core.jam.JamRoomClient
@@ -109,6 +116,8 @@ expect val platformModules: Module
 
 val sharedModules = module {
     includes(navigationModule)
+    singleOf(::ProfileStore)
+    singleOf(::QrLoginInbox)
     singleOf(::Database)
     single { HttpClientFactory() } withOptions { onClose { it?.close() } }
 
@@ -116,6 +125,10 @@ val sharedModules = module {
 
     // Shell
     viewModelOf(::AppShellViewModel)
+    viewModelOf(::ProfilesViewModel)
+    viewModelOf(::QrLoginReceiveViewModel)
+    viewModelOf(::QrLoginSendViewModel)
+    viewModelOf(::PlaybackDeviceViewModel)
     viewModelOf(::PlayerOptionsViewModel)
     viewModelOf(::PlayerQueueContentViewModel)
     viewModelOf(::AlternativeTrackContentViewModel)
@@ -139,7 +152,7 @@ val sharedModules = module {
     viewModelOf(::LibraryAlbumsViewModel)
     viewModelOf(::LibraryArtistsViewModel)
     viewModelOf(::LibraryLocalTracksViewModel)
-    viewModel { (folderPath: String) -> LocalFolderViewModel(folderPath, get(), get()) }
+    viewModel { (folderPath: String) -> LocalFolderViewModel(folderPath, get(), get(), get()) }
 
     // Plugin system
     singleOf(::PluginManager) {
@@ -282,6 +295,7 @@ val sharedModules = module {
         createdAtStart()
     }
     single { RemotePlaybackController(get(), get(), get(), get(), get()) }
+    single { PlaybackDeviceManager(get(), get(), get()) }
     singleOf(::JamRoomClient)
     single { JamRoomService(get(), get(), get(), get()) }
     singleOf(::AudioPlayerQueueRepository) { bind<QueueStateRepository>() }

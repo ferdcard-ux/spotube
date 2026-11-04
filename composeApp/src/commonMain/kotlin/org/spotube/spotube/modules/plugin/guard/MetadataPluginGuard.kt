@@ -107,7 +107,7 @@ fun MetadataPluginGuard(
                         contentAlignment = Alignment.Center) {
                         LoginRequiredDisplay(
                             pluginName = authState.pluginName,
-                            onLogin = authViewModel::login,
+                            onLogin = authViewModel::startLogin,
                             isLoggingIn = authState.isLoggingIn,
                             modifier = Modifier.widthIn(max = 420.dp))
                     }

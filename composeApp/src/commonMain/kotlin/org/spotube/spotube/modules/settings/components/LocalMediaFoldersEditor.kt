@@ -3,6 +3,7 @@
  */
 package org.spotube.spotube.modules.settings.components
 
+import org.spotube.spotube.core.ui.component.TvDialogFocus
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -275,10 +276,12 @@ fun LocalMediaFoldersDialogHost(viewModel: LocalMediaFoldersViewModel) {
             onDismissRequest = viewModel::dismiss,
             title = stringResource(Res.string.settings_local_media_folders_title)
         ) {
-            LocalMediaFoldersEditorContent(
-                state, { pickerLauncher.launch() }, viewModel::removeFolder,
-                viewModel::save, viewModel::dismiss
-            )
+            TvDialogFocus {
+                LocalMediaFoldersEditorContent(
+                    state, { pickerLauncher.launch() }, viewModel::removeFolder,
+                    viewModel::save, viewModel::dismiss
+                )
+            }
         }
     }
 }

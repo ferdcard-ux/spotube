@@ -29,6 +29,8 @@ import org.spotube.spotube.modules.library.LibraryScreen
 import org.spotube.spotube.modules.library.local_tracks.LocalFolderScreen
 import org.spotube.spotube.modules.library.local_tracks.LocalFolderViewModel
 import org.spotube.spotube.modules.lyrics.LyricsScreen
+import org.spotube.spotube.modules.profiles.ProfilesScreen
+import org.spotube.spotube.modules.qrlogin.QrLoginScreen
 import org.spotube.spotube.modules.playlist.PlaylistScreen
 import org.spotube.spotube.modules.plugin.PluginScreen
 import org.spotube.spotube.modules.plugin.guard.MetadataPluginGuard
@@ -83,6 +85,12 @@ sealed interface Routes : NavKey {
 
     @Serializable
     data object Blacklist : Routes
+
+    @Serializable
+    data object Profiles : Routes
+
+    @Serializable
+    data object QrLogin : Routes
 
     @Serializable
     data object RemoteControl : Routes
@@ -172,6 +180,12 @@ val navigationModule = module {
                 audioPlayer = get(),
                 navigationCommands = get())
         }
+    }
+    navigation<Routes.QrLogin> {
+        QrLoginScreen()
+    }
+    navigation<Routes.Profiles> {
+        ProfilesScreen()
     }
     navigation<Routes.Lyrics> {
         LyricsScreen(viewModel = koinViewModel())

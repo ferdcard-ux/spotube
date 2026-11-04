@@ -28,6 +28,12 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import org.spotube.spotube.core.ui.TvTextFieldGate
+import org.spotube.spotube.core.ui.tvRowKeys
+import org.spotube.spotube.core.ui.tvInnerActions
+import org.spotube.spotube.core.ui.tvFocusRing
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -365,13 +371,17 @@ fun TrackList(
                 modifier = Modifier
                     .weight(1f)
             ) {
-                MillenniumTextField(
-                    state = filterState,
-                    label = "",
-                    placeholder = stringResource(Res.string.track_list_filter_placeholder),
+                TvTextFieldGate(
                     modifier = Modifier
                         .widthIn(max = 400.dp)
-                        .align(Alignment.CenterEnd))
+                        .align(Alignment.CenterEnd)
+                ) { fieldModifier ->
+                    MillenniumTextField(
+                        state = filterState,
+                        label = "",
+                        placeholder = stringResource(Res.string.track_list_filter_placeholder),
+                        modifier = fieldModifier.widthIn(max = 400.dp))
+                }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -557,6 +567,7 @@ private fun TrackListRow(
     val isArtworkHovered by artworkInteractionSource.collectIsHoveredAsState()
     val rowInteractionSource = remember { MutableInteractionSource() }
     val isRowHovered by rowInteractionSource.collectIsHoveredAsState()
+    val optionsRequester = remember { FocusRequester() }
     val rowBackgroundColor = when {
         isSelected -> AppTheme.colors.secondary.copy(alpha = 0.12f)
         isCurrentTrack && isCurrentTrackPlaying -> AppTheme.colors.primaryContainer
@@ -566,7 +577,16 @@ private fun TrackListRow(
     }
 
     MillenniumListTile(
-        modifier = modifier,
+        // TV: the options button and inline links are not D-pad targets, so the row itself shows
+        // focus and opens options on long-press OK / Menu.
+        modifier = modifier
+            .tvRowKeys(
+                shape = AppTheme.shapes.medium,
+                onClick = onTrackClick,
+                onLongClick = onShowOptionsClick
+            )
+            // Right moves into the options button, then Left walks the album/artist links.
+            .tvInnerActions(entry = optionsRequester),
         selected = isSelected || isCurrentTrack,
         onClick = onTrackClick,
         title = {
@@ -674,6 +694,7 @@ private fun TrackListRow(
                         modifier = Modifier
                             .widthIn(max = 220.dp)
                             .hoverable(interactionSource)
+                            .tvFocusRing(AppTheme.shapes.small)
                             .clickable(
                                 indication = null,
                                 interactionSource = interactionSource) { onAlbumClick(track.album!!) }
@@ -713,6 +734,7 @@ private fun TrackListRow(
                 } else {
                     MillenniumIconButton(
                         onClick = onShowOptionsClick,
+                        modifier = Modifier.focusRequester(optionsRequester),
                         style = MillenniumIconButtonStyle.Quiet) {
                         MillenniumIcon(
                             imageVector = Iconsax.Iconsax3DotsMore,
@@ -748,6 +770,7 @@ private fun ArtistChips(
                     overflow = TextOverflow.Ellipsis,
                     textDecoration = if (isHovered || isPressed) TextDecoration.Underline else null,
                     modifier = Modifier
+                        .tvFocusRing(AppTheme.shapes.small)
                         .clickable(
                         indication = null,
                         interactionSource = interactionSource
@@ -770,7 +793,9 @@ private fun ArtistChips(
                 color = AppTheme.colors.primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.clickable(onClick = onArtistsOverflowClick))
+                modifier = Modifier
+                    .tvFocusRing(AppTheme.shapes.small)
+                    .clickable(onClick = onArtistsOverflowClick))
         }
     }
 }

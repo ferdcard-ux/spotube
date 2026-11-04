@@ -27,6 +27,11 @@ import kotlinx.serialization.Serializable
 import org.spotube.millennium.theme.MillenniumPalette
 
 @Serializable
+const val TV_CONTENT_SCALE_AUTO = 0
+
+/** Safe TV content scales: below 75 % text is hard to read from a sofa, above 100 % covers crop. */
+val TV_CONTENT_SCALE_OPTIONS = listOf(TV_CONTENT_SCALE_AUTO, 75, 80, 85, 90, 95, 100)
+
 enum class Theme {
     LIGHT, DARK, SYSTEM
 }
@@ -43,6 +48,12 @@ data class UserSettings(
     // Appearance
     val theme: Theme = Theme.SYSTEM,
     val palette: MillenniumPalette = MillenniumPalette.Blue,
+    // TV only: percent the screen content is drawn at, one of [TV_CONTENT_SCALE_OPTIONS];
+    // [TV_CONTENT_SCALE_AUTO] fits the content to the screen height.
+    val tvContentScale: Int = TV_CONTENT_SCALE_AUTO,
+    // Keep the display on (no screensaver / sleep) while the app is visible.
+    // Null = device default: on for TV, off elsewhere.
+    val keepScreenOn: Boolean? = null,
 
     // Playback
     val streamingMusicFormat: AudioFormat = defaultStreamingMusicFormat(),

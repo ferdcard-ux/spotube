@@ -19,6 +19,7 @@ package org.spotube.spotube.modules.playlist
 
 
 import org.spotube.spotube.core.ui.component.AdaptiveDialogBottomSheet
+import org.spotube.spotube.core.ui.TvTextFieldGate
 import org.spotube.millennium.composables.MillenniumCircularProgress
 import org.spotube.millennium.composables.MillenniumIcon
 import org.spotube.millennium.composables.MillenniumButton
@@ -101,10 +102,12 @@ fun AddTracksToPlaylistDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                MillenniumTextField(
-                    state = state.queryState,
-                    modifier = Modifier.weight(1f),
-                    placeholder = stringResource(Res.string.playlist_add_tracks_search_placeholder))
+                TvTextFieldGate(modifier = Modifier.weight(1f)) { fieldModifier ->
+                    MillenniumTextField(
+                        state = state.queryState,
+                        modifier = fieldModifier.fillMaxWidth(),
+                        placeholder = stringResource(Res.string.playlist_add_tracks_search_placeholder))
+                }
                 MillenniumIconButton(
                     icon = Iconsax.IconsaxSearch,
                     contentDescription = stringResource(Res.string.playlist_add_tracks_search_content_description),

@@ -18,6 +18,7 @@
 package org.spotube.spotube.modules.settings.components
 
 
+import org.spotube.spotube.core.ui.component.TvDialogFocus
 import org.spotube.millennium.composables.MillenniumDialogHeader
 import org.spotube.millennium.composables.MillenniumDialogTitle
 import org.spotube.millennium.composables.MillenniumDialogClose
@@ -55,6 +56,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import org.spotube.spotube.LocalIsTv
+import org.spotube.spotube.core.ui.TvTextFieldGate
 import org.spotube.spotube.core.ui.component.AdaptiveDropdownBottomSheet
 import org.spotube.spotube.core.ui.component.AdaptiveMenuItem
 import org.spotube.spotube.resources.iconsax.Iconsax
@@ -102,6 +105,7 @@ internal fun <T> SelectionSettingCard(
     filter: ((AdaptiveMenuItem, String) -> Boolean)? = null
 ) {
     var isDialogOpen by remember { mutableStateOf(false) }
+    var isMenuOpen by remember { mutableStateOf(false) }
 
     Box {
         val isWideLayout = currentWindowWidthBreakpoint() isAtLeast WindowBreakpoints.Medium
@@ -112,6 +116,8 @@ internal fun <T> SelectionSettingCard(
             icon = icon,
             trailingContent = {
                 AdaptiveDropdownBottomSheet(
+                    expanded = isMenuOpen,
+                    onExpandedChange = { isMenuOpen = it },
                     items = options.map { option ->
                         AdaptiveMenuItem(
                             label = optionLabel(option),
@@ -141,7 +147,11 @@ internal fun <T> SelectionSettingCard(
                 )
             },
             onClick = {
+                // Wide layouts show the dropdown inline: the row opens it, so it also works where
+                // the trailing button is not a focus target (TV D-pad). Narrow layouts use a dialog.
                 if (isWideLayout) {
+                    isMenuOpen = true
+                } else {
                     isDialogOpen = true
                 }
             }
@@ -154,20 +164,22 @@ internal fun <T> SelectionSettingCard(
                 onDismissRequest = { isDialogOpen = false },
                 title = dialogTitle
             ) {
-                MillenniumRadioGroup(
-                    value = selectedOption,
-                    onValueChange = { option ->
-                        onOptionSelected(option)
-                        isDialogOpen = false
-                    },
-                    options = options,
-                    label = dialogTitle,
-                    optionLabel = { option -> labels[options.indexOf(option)] })
-                MillenniumButton(
-                    onClick = { isDialogOpen = false },
-                    style = MillenniumButtonStyle.Quiet
-                ) {
-                    Text(stringResource(Res.string.common_close))
+                TvDialogFocus {
+                    MillenniumRadioGroup(
+                        value = selectedOption,
+                        onValueChange = { option ->
+                            onOptionSelected(option)
+                            isDialogOpen = false
+                        },
+                        options = options,
+                        label = dialogTitle,
+                        optionLabel = { option -> labels[options.indexOf(option)] })
+                    MillenniumButton(
+                        onClick = { isDialogOpen = false },
+                        style = MillenniumButtonStyle.Quiet
+                    ) {
+                        Text(stringResource(Res.string.common_close))
+                    }
                 }
             }
         }
@@ -193,7 +205,10 @@ internal fun TextInputSettingCard(
     var isDialogOpen by remember { mutableStateOf(false) }
 
     Box {
-        val isWideLayout = currentWindowWidthBreakpoint() isAtLeast WindowBreakpoints.Medium
+        // On TV the inline field is not a D-pad target and would open the IME on focus: edit in
+        // the dialog instead, as on narrow layouts.
+        val isWideLayout = currentWindowWidthBreakpoint() isAtLeast WindowBreakpoints.Medium &&
+            !LocalIsTv.current
         val inlineState = rememberTextFieldState(value)
 
         LaunchedEffect(inlineState, isWideLayout) {
@@ -245,39 +260,43 @@ internal fun TextInputSettingCard(
             val errorMessage = validate(normalizedValue)
 
             MillenniumDialog(visible = true, onDismissRequest = { isDialogOpen = false }) {
-                MillenniumDialogHeader {
-                    MillenniumDialogTitle(dialogTitle)
-                    MillenniumDialogClose()
-                }
-                MillenniumDialogBody {
-                    if (dialogDescription != null) {
-                        MillenniumDialogDescription(dialogDescription)
+                TvDialogFocus {
+                    MillenniumDialogHeader {
+                        MillenniumDialogTitle(dialogTitle)
+                        MillenniumDialogClose()
                     }
-                    MillenniumTextField(
-                        state = dialogState,
-                        label = title,
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = placeholder,
-                        error = errorMessage
-                    )
-                }
-                MillenniumDialogFooter {
-                    MillenniumButton(
-                        onClick = { isDialogOpen = false },
-                        style = MillenniumButtonStyle.Secondary
-                    ) {
-                        Text(stringResource(Res.string.common_cancel))
+                    MillenniumDialogBody {
+                        if (dialogDescription != null) {
+                            MillenniumDialogDescription(dialogDescription)
+                        }
+                        TvTextFieldGate(modifier = Modifier.fillMaxWidth()) { fieldModifier ->
+                            MillenniumTextField(
+                                state = dialogState,
+                                label = title,
+                                modifier = fieldModifier.fillMaxWidth(),
+                                placeholder = placeholder,
+                                error = errorMessage
+                            )
+                        }
                     }
-                    MillenniumButton(
-                        onClick = {
-                            if (errorMessage == null) {
-                                onValueSaved(normalizedValue)
-                                isDialogOpen = false
-                            }
-                        },
-                        enabled = errorMessage == null
-                    ) {
-                        Text(stringResource(Res.string.common_save))
+                    MillenniumDialogFooter {
+                        MillenniumButton(
+                            onClick = { isDialogOpen = false },
+                            style = MillenniumButtonStyle.Secondary
+                        ) {
+                            Text(stringResource(Res.string.common_cancel))
+                        }
+                        MillenniumButton(
+                            onClick = {
+                                if (errorMessage == null) {
+                                    onValueSaved(normalizedValue)
+                                    isDialogOpen = false
+                                }
+                            },
+                            enabled = errorMessage == null
+                        ) {
+                            Text(stringResource(Res.string.common_save))
+                        }
                     }
                 }
             }

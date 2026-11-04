@@ -3,6 +3,7 @@
  */
 package org.spotube.spotube.modules.library.local_tracks
 
+import org.spotube.spotube.core.remote.PlaybackDeviceManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,7 +19,8 @@ import org.spotube.spotube.modules.library.local_tracks.media.LocalMediaTrack
 class LocalFolderViewModel(
     private val folderPath: String,
     coordinator: LocalMediaLibraryCoordinator,
-    private val audioPlayerQueue: AudioPlayerQueue
+    private val audioPlayerQueue: AudioPlayerQueue,
+    private val playbackDeviceManager: PlaybackDeviceManager
 ) : ViewModel() {
     val state: StateFlow<LibraryLocalTracksState> = coordinator.cacheState
         .map { cache ->
@@ -45,6 +47,8 @@ class LocalFolderViewModel(
     private fun play(startPosition: Int) {
         val tracks = tracks()
         if (tracks.isEmpty()) return
+        // Files on this device cannot play on a remote one: play them here.
+        playbackDeviceManager.useLocalWithoutTransfer()
         viewModelScope.launch {
             audioPlayerQueue.load(
                 entries = tracks.map {

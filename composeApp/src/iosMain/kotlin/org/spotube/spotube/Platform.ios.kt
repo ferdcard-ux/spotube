@@ -17,6 +17,7 @@
 
 package org.spotube.spotube
 
+import androidx.compose.runtime.Composable
 import platform.Foundation.NSURL
 import platform.UIKit.UIApplication
 import platform.UIKit.UIDevice
@@ -27,6 +28,11 @@ class IOSPlatform: Platform {
 }
 
 actual fun getPlatform(): Platform = IOSPlatform()
+
+actual fun isTelevision(): Boolean = false
+
+@Composable
+actual fun rememberIsTv(): Boolean = false
 
 actual fun openUrlInBrowser(url: String) {
     val nsUrl = NSURL.URLWithString(url) ?: return

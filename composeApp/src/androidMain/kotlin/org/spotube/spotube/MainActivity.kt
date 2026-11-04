@@ -25,12 +25,27 @@ import androidx.activity.enableEdgeToEdge
 import org.spotube.spotube.core.deeplink.ExternalUriHandler
 import org.spotube.spotube.core.newpipe.NewPipeDownloader
 import org.spotube.spotube.core.paths.Paths
+import org.spotube.spotube.core.platform.isTelevisionDevice
 import org.spotube.spotube.media.PlaybackService
+import org.spotube.tv.MainActivityTv
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.dialogs.init
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Defense in depth: the Leanback launcher already opens MainActivityTv, but a TV can still
+        // launch this activity (e.g. `adb shell am start`). Delegate instead of showing phone UI.
+        if (isTelevisionDevice()) {
+            super.onCreate(savedInstanceState)
+            startActivity(
+                Intent(this, MainActivityTv::class.java).apply {
+                    data = intent?.data
+                }
+            )
+            finish()
+            return
+        }
+
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         FileKit.init(this)

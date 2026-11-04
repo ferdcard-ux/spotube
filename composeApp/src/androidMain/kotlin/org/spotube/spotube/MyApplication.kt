@@ -26,6 +26,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.component.KoinComponent
+import org.spotube.spotube.tv.installTvBridge
 
 class MyApplication : Application(), KoinComponent {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -36,6 +37,9 @@ class MyApplication : Application(), KoinComponent {
         initKoin {
             androidContext(this@MyApplication)
         }
+        // The Leanback activity lives in :AndroidTV, which cannot depend on this module, so the
+        // TV root composition is handed over once Koin and Paths are ready.
+        installTvBridge()
     }
 
     override fun onTerminate() {

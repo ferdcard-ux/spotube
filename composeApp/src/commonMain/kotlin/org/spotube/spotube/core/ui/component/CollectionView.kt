@@ -42,6 +42,7 @@ import org.spotube.plugin_interfaces.plugin_apis.metadata.album.MetadataAlbum
 import org.spotube.plugin_interfaces.plugin_apis.metadata.artist.MetadataArtist
 import org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack
 import org.spotube.spotube.core.ui.misc.TextWithShimmer
+import org.spotube.spotube.core.ui.tvKeepFocusWhileBusy
 import org.spotube.spotube.core.ui.misc.shimmerApply
 import org.spotube.spotube.core.ui.theming.AppTheme
 import org.spotube.spotube.resources.iconsax.Iconsax
@@ -126,6 +127,7 @@ fun CollectionView(
             actions = if (isCollapsed && !isJamGuest) {
                 {
                     MillenniumIconButton(
+                        modifier = Modifier.tvKeepFocusWhileBusy(isPlayLoading),
                         onClick = onPlay,
                         loading = isPlayLoading,
                         style = MillenniumIconButtonStyle.Quiet) {

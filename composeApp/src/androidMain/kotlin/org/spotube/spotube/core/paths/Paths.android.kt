@@ -19,6 +19,7 @@ package org.spotube.spotube.core.paths
 
 import android.content.Context
 import android.os.Environment
+import org.spotube.spotube.core.platform.isTelevisionDevice
 
 actual class Paths {
     private val context: Context
@@ -33,6 +34,13 @@ actual class Paths {
     }
 
     actual fun getUserDownloadsDirPath(): String {
+        // TVs rarely expose a user-writable public Downloads directory (and scoped storage blocks
+        // it), so downloads stay in the app-specific external directory.
+        if (context.isTelevisionDevice()) {
+            val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                ?: context.filesDir
+            return dir.absolutePath
+        }
         return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath + java.io.File.separator + "Spotube"
     }
 

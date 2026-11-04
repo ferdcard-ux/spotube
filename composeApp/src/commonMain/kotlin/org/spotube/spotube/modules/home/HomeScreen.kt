@@ -18,6 +18,8 @@
 package org.spotube.spotube.modules.home
 
 
+import spotube.composeapp.generated.resources.profiles_title
+import org.spotube.spotube.resources.iconsax.User
 import org.spotube.millennium.composables.MillenniumIcon
 import org.spotube.millennium.composables.MillenniumIconButton
 import org.spotube.millennium.composables.MillenniumIconButtonStyle
@@ -45,10 +47,16 @@ import org.spotube.millennium.composables.MillenniumPullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import org.spotube.spotube.LocalIsTv
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -110,8 +118,11 @@ fun HomeScreen(viewModel: HomeScreenViewModel) {
         else -> null
     }
 
+    val isTv = LocalIsTv.current
     LaunchedEffect(selectedGenreId) {
-        listState.scrollToItem(0)
+        // On TV the focused category chip must stay on screen (with the new sections below it);
+        // jumping to the top would show only the carousel and hide what the chip just opened.
+        if (!isTv) listState.scrollToItem(0)
     }
 
     LaunchedEffect(listState) {
@@ -184,6 +195,16 @@ fun HomeScreen(viewModel: HomeScreenViewModel) {
                         MillenniumIcon(
                             imageVector = Iconsax.IconsaxHeart2,
                             contentDescription = supportLabel
+                        )
+                    }
+                    // Phones have no sidebar or TV rail: profiles live here.
+                    MillenniumIconButton(
+                        onClick = { navigationCommands.navigateTo(Routes.Profiles) },
+                        style = MillenniumIconButtonStyle.Quiet
+                    ) {
+                        MillenniumIcon(
+                            imageVector = Iconsax.User,
+                            contentDescription = stringResource(Res.string.profiles_title)
                         )
                     }
                 }
@@ -442,6 +463,17 @@ private fun GenreTabs(
     onGenreSelected: (String) -> Unit
 ) {
     val rowState = rememberLazyListState()
+    val isTv = LocalIsTv.current
+    val chipRequesters = remember(genres) { genres.associate { it.id to FocusRequester() } }
+    // Focus mechanics only: the chip's style swap drops D-pad focus, so it is handed back.
+    var refocusGenreId by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(refocusGenreId) {
+        val id = refocusGenreId ?: return@LaunchedEffect
+        withFrameNanos { }
+        runCatching { chipRequesters[id]?.requestFocus() }
+        refocusGenreId = null
+    }
 
     LazyRow(
         state = rowState,
@@ -449,9 +481,15 @@ private fun GenreTabs(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        items(genres) { genre ->
+        items(genres, key = { it.id }) { genre ->
             MillenniumButton(
-                onClick = { onGenreSelected(genre.id) },
+                modifier = chipRequesters[genre.id]
+                    ?.let { Modifier.focusRequester(it) }
+                    ?: Modifier,
+                onClick = {
+                    onGenreSelected(genre.id)
+                    if (isTv) refocusGenreId = genre.id
+                },
                 style = if (selectedGenreId == genre.id) {
                     MillenniumButtonStyle.Primary
                 } else {

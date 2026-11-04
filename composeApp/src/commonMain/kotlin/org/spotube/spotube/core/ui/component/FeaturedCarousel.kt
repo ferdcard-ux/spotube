@@ -52,6 +52,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import org.spotube.spotube.LocalIsTv
+import org.spotube.spotube.core.ui.tvFocusRing
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -109,14 +118,45 @@ private fun FeaturedCarouselContent(
     modifier: Modifier = Modifier) {
     val centerIndex = items.size / 2
     var selectedIndex by remember { mutableIntStateOf(centerIndex) }
-    val state = rememberCoverflowState(centerIndex) { index -> selectedIndex = index }
+    // The coverflow also reports -1 while the previous cover is being deselected; keeping it
+    // would dim every cover and break D-pad stepping, so only real indexes are kept.
+    val state = rememberCoverflowState(centerIndex) { index -> if (index >= 0) selectedIndex = index }
     val isSmallScreen = currentWindowWidthBreakpoint() isBelow WindowBreakpoints.Medium
+    val isTv = LocalIsTv.current
+    val cardRequesters = remember(items.size) { List(items.size) { FocusRequester() } }
+    // D-pad position of the carousel. The coverflow's own selection is derived from layout and
+    // can be a few items off while it settles, so stepping from it skips covers.
+    var tvIndex by remember(items.size) { mutableIntStateOf(centerIndex) }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(
                 if (isSmallScreen) 200.dp else 300.dp
+            )
+            .then(
+                if (isTv) {
+                    // The side cards overlap the centered one, so D-pad search never reaches them:
+                    // left/right step the carousel instead and focus follows the new center card.
+                    // At either end the key is not consumed and focus leaves the carousel normally.
+                    Modifier.onPreviewKeyEvent { event ->
+                        val step = when (event.key) {
+                            Key.DirectionLeft -> -1
+                            Key.DirectionRight -> 1
+                            else -> return@onPreviewKeyEvent false
+                        }
+                        val target = tvIndex + step
+                        if (target !in items.indices) return@onPreviewKeyEvent false
+                        if (event.type == KeyEventType.KeyDown) {
+                            tvIndex = target
+                            state.scrollToItem(target)
+                            runCatching { cardRequesters[target].requestFocus() }
+                        }
+                        true
+                    }
+                } else {
+                    Modifier
+                }
             ),
         contentAlignment = Alignment.Center) {
         Coverflow(
@@ -132,9 +172,13 @@ private fun FeaturedCarouselContent(
             items(
                 items = items,
                 key = { index: Int -> items[index].hashCode() }) { item: MetadataBrowseItem ->
+                val itemIndex = items.indexOf(item)
                 FeaturedCarouselCard(
                     item = item,
-                    isCentered = selectedIndex == items.indexOf(item),
+                    isCentered = selectedIndex == itemIndex,
+                    modifier = cardRequesters.getOrNull(itemIndex)
+                        ?.let { Modifier.focusRequester(it) }
+                        ?: Modifier,
                     onScrollToCenter = {
                         state.scrollToItem(items.indexOf(item))
                     })
@@ -185,6 +229,7 @@ private fun FeaturedCarouselCard(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
+            .tvFocusRing(RoundedCornerShape(24.dp))
             .clickable() {
                 if (!isCentered) {
                     onScrollToCenter()
@@ -373,6 +418,8 @@ private fun FeaturedPlayButton(
 
         is MetadataBrowseItem.Track -> {
             val queueEntry = QueueEntry.StreamingTrack(track = item.data, url = "")
+            // Plays on the active device (this one or the connected TV).
+            val trackPlayer: RemotePlaybackController = koinInject()
             val currentTrack by audioPlayerQueue.currentQueueEntryFlow.collectAsStateWithLifecycle()
             val isPlaying =
                 currentTrack is QueueEntry.StreamingTrack && (currentTrack as QueueEntry.StreamingTrack).track.id ==
@@ -384,15 +431,7 @@ private fun FeaturedPlayButton(
             ) {
                 MillenniumIconButton(
                     style = MillenniumIconButtonStyle.Quiet,
-                    onClick = {
-                        scope.launch {
-                            audioPlayerQueue.load(
-                                entries = listOf(queueEntry),
-                                autoPlay = true,
-                                startPosition = 0,
-                                collectionEntry = null)
-                        }
-                    },
+                    onClick = { trackPlayer.playTracks(listOf(queueEntry.track)) },
                     enabled = enabled
                 ) {
                     MillenniumIcon(

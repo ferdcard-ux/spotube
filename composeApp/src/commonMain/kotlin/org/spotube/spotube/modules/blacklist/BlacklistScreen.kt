@@ -19,6 +19,7 @@ package org.spotube.spotube.modules.blacklist
 
 
 import org.spotube.millennium.composables.MillenniumIcon
+import org.spotube.spotube.core.ui.TvTextFieldGate
 import org.spotube.millennium.composables.MillenniumIconButton
 import org.spotube.millennium.composables.MillenniumIconButtonStyle
 import org.spotube.millennium.composables.MillenniumTextField
@@ -128,11 +129,13 @@ internal fun BlacklistContent(
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        MillenniumTextField(
-            state = filterState,
-            label = "",
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = stringResource(Res.string.blacklist_filter_placeholder))
+        TvTextFieldGate(modifier = Modifier.fillMaxWidth()) { fieldModifier ->
+            MillenniumTextField(
+                state = filterState,
+                label = "",
+                modifier = fieldModifier.fillMaxWidth(),
+                placeholder = stringResource(Res.string.blacklist_filter_placeholder))
+        }
 
         if (isEmpty) {
             Box(

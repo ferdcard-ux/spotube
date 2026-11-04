@@ -3,6 +3,7 @@
  */
 package org.spotube.spotube.core.ui.component.cards
 
+import org.spotube.spotube.core.ui.tvInnerActions
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.LocalIndication
@@ -72,6 +73,7 @@ internal fun MediaCardSurface(
             .onFocusChanged { groupFocused = it.hasFocus }
             .focusGroup()
             .hoverable(interaction, enabled = interactive)
+            .then(if (onClick != null) Modifier.tvInnerActions() else Modifier)
             .then(
                 if (onClick != null) Modifier.millenniumActionPointer().clickable(
                     interactionSource = interaction,

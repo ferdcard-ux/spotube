@@ -18,6 +18,7 @@
 package org.spotube.spotube.modules.library.playlist
 
 import org.spotube.spotube.core.ui.component.AdaptiveDialogBottomSheet
+import org.spotube.spotube.core.ui.TvTextFieldGate
 import androidx.compose.foundation.clickable
 import org.spotube.millennium.composables.MillenniumButton
 import org.spotube.millennium.composables.MillenniumButtonStyle
@@ -208,19 +209,23 @@ private fun PlaylistFormFields(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        TvTextFieldGate(modifier = Modifier.fillMaxWidth()) { fieldModifier ->
         MillenniumTextField(
-            state = nameState,
-            label = stringResource(Res.string.library_playlist_form_name_label),
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = stringResource(Res.string.library_playlist_form_name_placeholder)
-        )
+                state = nameState,
+                label = stringResource(Res.string.library_playlist_form_name_label),
+                modifier = fieldModifier.fillMaxWidth(),
+                placeholder = stringResource(Res.string.library_playlist_form_name_placeholder)
+            )
+    }
 
-        MillenniumTextField(
-            state = descriptionState,
-            label = stringResource(Res.string.library_playlist_form_description_label),
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = stringResource(Res.string.library_playlist_form_description_placeholder)
-        )
+        TvTextFieldGate(modifier = Modifier.fillMaxWidth()) { fieldModifier ->
+            MillenniumTextField(
+                state = descriptionState,
+                label = stringResource(Res.string.library_playlist_form_description_label),
+                modifier = fieldModifier.fillMaxWidth(),
+                placeholder = stringResource(Res.string.library_playlist_form_description_placeholder)
+            )
+        }
 
         Row(
             modifier = Modifier

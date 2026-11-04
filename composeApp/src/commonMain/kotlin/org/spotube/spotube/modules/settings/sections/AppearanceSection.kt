@@ -17,6 +17,9 @@
 
 package org.spotube.spotube.modules.settings.sections
 
+import org.spotube.spotube.resources.iconsax.IconsaxMirrorScreenRegular
+import org.spotube.spotube.PlatformType
+import org.spotube.spotube.getPlatform
 import org.spotube.millennium.composables.MillenniumDialogHeader
 import org.spotube.millennium.composables.MillenniumDialogTitle
 import org.spotube.millennium.composables.MillenniumDialogClose
@@ -44,6 +47,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import org.spotube.spotube.LocalIsTv
+import org.spotube.spotube.core.ui.component.TvDialogFocus
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -51,8 +62,13 @@ import org.spotube.spotube.core.ui.theming.AppTheme
 import org.spotube.spotube.core.ui.theming.isLightAppearance
 import org.spotube.spotube.modules.settings.SettingsViewModel
 import org.spotube.spotube.modules.settings.Theme
+import org.spotube.spotube.modules.settings.TV_CONTENT_SCALE_AUTO
+import org.spotube.spotube.modules.settings.TV_CONTENT_SCALE_OPTIONS
+import org.spotube.spotube.isTelevision
+import org.spotube.spotube.resources.iconsax.FluentMaximize
 import org.spotube.spotube.modules.settings.UserSettings
 import org.spotube.spotube.modules.settings.components.SelectionSettingCard
+import org.spotube.spotube.modules.settings.components.SwitchSettingCard
 import org.spotube.spotube.modules.settings.components.SettingCardItem
 import org.spotube.spotube.resources.iconsax.Iconsax
 import org.spotube.spotube.resources.iconsax.IconsaxColorSwatch
@@ -78,7 +94,7 @@ internal fun LazyListScope.appearanceSection(
         settingsSectionHeader(Res.string.settings_section_appearance)
     }
     settingsSectionCard(
-        items = listOf(
+        items = listOf<@Composable () -> Unit>(
             {
                 SelectionSettingCard(
                     title = stringResource(Res.string.settings_theme_title),
@@ -113,9 +129,62 @@ internal fun LazyListScope.appearanceSection(
                             copy(palette = palette)
                         }
                     })
+            }) + if (getPlatform().type == PlatformType.Android) {
+            listOf<@Composable () -> Unit>({
+                SwitchSettingCard(
+                    title = stringResource(Res.string.settings_keep_screen_on_title),
+                    subtitle = stringResource(Res.string.settings_keep_screen_on_subtitle),
+                    icon = {
+                        SettingsItemIcon(
+                            Iconsax.IconsaxMirrorScreenRegular,
+                            stringResource(Res.string.settings_keep_screen_on_title)
+                        )
+                    },
+                    checked = settings.keepScreenOn ?: isTelevision(),
+                    onCheckedChange = { enabled ->
+                        settingsViewModel.updateSettings { copy(keepScreenOn = enabled) }
+                    }
+                )
             })
+        } else {
+            emptyList()
+        } + if (isTelevision()) {
+            listOf<@Composable () -> Unit>({
+                SelectionSettingCard(
+                    title = stringResource(Res.string.settings_tv_scale_title),
+                    subtitle = stringResource(
+                        Res.string.settings_tv_scale_subtitle_current,
+                        tvContentScaleLabel(settings.tvContentScale)
+                    ),
+                    icon = {
+                        SettingsItemIcon(
+                            Iconsax.FluentMaximize,
+                            stringResource(Res.string.settings_tv_scale_title)
+                        )
+                    },
+                    selectedOption = settings.tvContentScale,
+                    options = TV_CONTENT_SCALE_OPTIONS,
+                    optionLabel = { tvContentScaleLabel(it) },
+                    onOptionSelected = { scale ->
+                        settingsViewModel.updateSettings {
+                            copy(tvContentScale = scale)
+                        }
+                    }
+                )
+            })
+        } else {
+            emptyList()
+        }
     )
 }
+
+@Composable
+private fun tvContentScaleLabel(scale: Int): String =
+    if (scale == TV_CONTENT_SCALE_AUTO) {
+        stringResource(Res.string.settings_tv_scale_auto)
+    } else {
+        stringResource(Res.string.settings_tv_scale_percent, scale)
+    }
 
 @Composable
 private fun Theme.displayLabel(): String {
@@ -156,44 +225,57 @@ private fun AppearanceSettingCard(
             mutableStateOf(selectedPalette)
         }
 
+        // TV: start D-pad focus on the current palette, otherwise it stays on the screen behind.
+        val swatchRequester = remember { FocusRequester() }
+        if (LocalIsTv.current) {
+            LaunchedEffect(Unit) {
+                // The dialog focuses its close button as it opens; take focus after that.
+                repeat(20) { withFrameNanos { } }
+                runCatching { swatchRequester.requestFocus(FocusDirection.Enter) }
+            }
+        }
         MillenniumDialog(visible = true, onDismissRequest = { isDialogOpen = false }) {
-            MillenniumDialogHeader {
-                MillenniumDialogTitle(stringResource(Res.string.settings_palette_dialog_title))
-                MillenniumDialogClose()
-            }
-            MillenniumDialogBody {
-            MillenniumText(
-                stringResource(Res.string.settings_palette_dialog_description),
-                color = AppTheme.colors.onSurfaceVariant)
-            MillenniumText(
-                stringResource(Res.string.settings_palette_label),
-                color = AppTheme.colors.onSurface)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MillenniumPalette.entries.forEach { palette ->
-                    PaletteSwatch(
-                        palette = palette,
-                        label = palette.displayLabel(),
-                        selected = palette == draftPalette,
-                        onClick = { draftPalette = palette })
+            // TV: this dialog draws in the screen's own window, so keep D-pad focus inside it.
+            TvDialogFocus {
+                MillenniumDialogHeader {
+                    MillenniumDialogTitle(stringResource(Res.string.settings_palette_dialog_title))
+                    MillenniumDialogClose()
                 }
-            }
+                MillenniumDialogBody {
+                MillenniumText(
+                    stringResource(Res.string.settings_palette_dialog_description),
+                    color = AppTheme.colors.onSurfaceVariant)
+                MillenniumText(
+                    stringResource(Res.string.settings_palette_label),
+                    color = AppTheme.colors.onSurface)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MillenniumPalette.entries.forEach { palette ->
+                        PaletteSwatch(
+                            palette = palette,
+                            label = palette.displayLabel(),
+                            selected = palette == draftPalette,
+                            onClick = { draftPalette = palette },
+                            focusRequester = if (palette == selectedPalette) swatchRequester else null)
+                    }
+                }
 
-            PalettePreview(draftPalette)
-            }
-            MillenniumDialogFooter {
-                MillenniumButton(
-                    onClick = { isDialogOpen = false },
-                    style = MillenniumButtonStyle.Secondary) {
-                    MillenniumText(stringResource(Res.string.common_cancel))
+                PalettePreview(draftPalette)
                 }
-                MillenniumButton(
-                    onClick = {
-                        onSaved(draftPalette)
-                        isDialogOpen = false
-                    }) {
-                    MillenniumText(stringResource(Res.string.common_save))
+                MillenniumDialogFooter {
+                    MillenniumButton(
+                        onClick = { isDialogOpen = false },
+                        style = MillenniumButtonStyle.Secondary) {
+                        MillenniumText(stringResource(Res.string.common_cancel))
+                    }
+                    MillenniumButton(
+                        onClick = {
+                            onSaved(draftPalette)
+                            isDialogOpen = false
+                        }) {
+                        MillenniumText(stringResource(Res.string.common_save))
+                    }
                 }
             }
         }
@@ -205,11 +287,29 @@ private fun PaletteSwatch(
     palette: MillenniumPalette,
     label: String,
     selected: Boolean,
-    onClick: () -> Unit) {
+    onClick: () -> Unit,
+    focusRequester: FocusRequester? = null) {
     val dark = !isLightAppearance()
     val scheme = remember(palette, dark) { MillenniumColorSchemes().resolve(palette, dark = dark) }
+    val isTv = LocalIsTv.current
+    // TV: a swatch has the accent colour itself, so an accent ring would vanish on it. Draw a
+    // contrasting ring with a gap around the focused swatch instead.
+    var focused by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
+            .then(
+                if (isTv) {
+                    Modifier
+                        .border(
+                            width = if (focused) 3.dp else 0.dp,
+                            color = if (focused) AppTheme.colors.onSurface else Color.Transparent,
+                            shape = CircleShape)
+                        .padding(6.dp)
+                } else {
+                    Modifier
+                })
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .onFocusChanged { focused = it.isFocused }
             .size(40.dp)
             .clip(CircleShape)
             .background(scheme.accent)

@@ -21,7 +21,11 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import org.koin.core.context.GlobalContext
+import org.spotube.spotube.core.platform.isTelevisionDevice
 
 class AndroidPlatform : Platform {
     override val name: String = "Android ${Build.VERSION.SDK_INT}"
@@ -36,4 +40,15 @@ actual fun openUrlInBrowser(url: String) {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     context.startActivity(intent)
+}
+
+actual fun isTelevision(): Boolean {
+    val context = runCatching { GlobalContext.get().get<Context>() }.getOrNull() ?: return false
+    return context.isTelevisionDevice()
+}
+
+@Composable
+actual fun rememberIsTv(): Boolean {
+    val context = LocalContext.current
+    return remember(context) { context.isTelevisionDevice() }
 }

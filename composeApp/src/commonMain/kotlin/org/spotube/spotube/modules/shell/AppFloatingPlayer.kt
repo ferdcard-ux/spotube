@@ -18,6 +18,7 @@
 package org.spotube.spotube.modules.shell
 
 
+import org.spotube.spotube.modules.devices.PlaybackDeviceButton
 import org.spotube.millennium.composables.MillenniumIcon
 import org.spotube.millennium.composables.MillenniumIconButton
 import org.spotube.millennium.composables.MillenniumIconButtonStyle
@@ -207,6 +208,7 @@ internal fun FloatingPlayerContent(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    PlaybackDeviceButton()
                     heartButton()
                     Spacer(modifier = Modifier.size(8.dp))
                     MillenniumIconButton(

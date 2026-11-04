@@ -19,6 +19,7 @@ package org.spotube.spotube.modules.plugin
 
 
 import org.spotube.millennium.composables.MillenniumCircularProgress
+import org.spotube.spotube.core.ui.TvTextFieldGate
 import org.spotube.millennium.composables.MillenniumDotsLoader
 import org.spotube.millennium.composables.MillenniumSpokeSpinner
 import org.spotube.millennium.composables.MillenniumButton
@@ -668,12 +669,14 @@ private fun InstallSheet(
                             style = AppTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold)
                     }
-                    MillenniumTextField(
-                        state = urlState,
-                        label = "",
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = stringResource(Res.string.plugin_url_placeholder),
-                        error = urlError?.text())
+                    TvTextFieldGate(modifier = Modifier.fillMaxWidth()) { fieldModifier ->
+                        MillenniumTextField(
+                            state = urlState,
+                            label = "",
+                            modifier = fieldModifier.fillMaxWidth(),
+                            placeholder = stringResource(Res.string.plugin_url_placeholder),
+                            error = urlError?.text())
+                    }
                     MillenniumButton(
                         onClick = onSubmitUrl,
                         loading = isLoadingUrl,

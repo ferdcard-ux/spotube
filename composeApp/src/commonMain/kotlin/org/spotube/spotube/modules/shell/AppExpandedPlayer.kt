@@ -18,6 +18,7 @@
 package org.spotube.spotube.modules.shell
 
 
+import org.spotube.spotube.modules.devices.PlaybackDeviceButton
 import org.spotube.millennium.composables.MillenniumIcon
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -544,6 +545,7 @@ fun AppExpandedPlayer(
                         textAlign = TextAlign.Center
                     )
                 }
+                PlaybackDeviceButton(style = MillenniumIconButtonStyle.Secondary)
                 MillenniumIconButton(
                     onClick = onQueue,
                     style = MillenniumIconButtonStyle.Secondary

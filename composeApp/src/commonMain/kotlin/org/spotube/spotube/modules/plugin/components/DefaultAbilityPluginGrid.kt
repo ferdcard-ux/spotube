@@ -39,10 +39,15 @@ import org.spotube.spotube.core.ui.theming.AppTheme
 
 import com.composeunstyled.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -51,6 +56,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.spotube.spotube.LocalIsTv
 import org.spotube.spotube.core.ui.component.AdaptiveDropdownBottomSheet
 import org.spotube.spotube.core.ui.component.AdaptiveMenuItem
 import org.spotube.spotube.core.ui.component.HeaderDisplayMode
@@ -251,11 +257,19 @@ private fun AbilityPluginTile(
     val gradient = ability.aeroGradient()
     val shape = RoundedCornerShape(20.dp)
     val seed = ability.ordinal + 1
+    // TV has no hover or pointer: without a visible ring the D-pad focus is invisible on the
+    // gradient tiles. Phone/desktop keep their existing look.
+    val isTv = LocalIsTv.current
+    var focused by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
+            .then(
+                if (isTv && focused) Modifier.border(3.dp, Color.White, shape) else Modifier
+            )
+            .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
             .heightIn(min = 148.dp)
             .drawWithCache {

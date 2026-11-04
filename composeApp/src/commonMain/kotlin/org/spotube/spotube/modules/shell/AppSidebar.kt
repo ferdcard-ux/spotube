@@ -17,6 +17,10 @@
 
 package org.spotube.spotube.modules.shell
 
+import spotube.composeapp.generated.resources.profiles_title
+import spotube.composeapp.generated.resources.profiles_main_name
+import org.spotube.spotube.modules.profiles.ProfilesViewModel
+import org.spotube.spotube.resources.iconsax.User
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -95,8 +99,11 @@ fun AppSidebar(
     navigationState: NavigationState,
     modifier: Modifier = Modifier,
     libraryState: LibraryState = koinInject(),
-    connectStatusViewModel: ConnectStatusViewModel = koinViewModel()
+    connectStatusViewModel: ConnectStatusViewModel = koinViewModel(),
+    profilesViewModel: ProfilesViewModel = koinViewModel()
 ) {
+    val profilesState by profilesViewModel.uiState.collectAsStateWithLifecycle()
+    val profileLabel = profilesState.activeProfile?.name ?: stringResource(Res.string.profiles_main_name)
     val connectStatus by connectStatusViewModel.uiState.collectAsStateWithLifecycle()
     val remoteStatus = connectStatus.remote?.let { remoteStatusLabel(it) }
     val jamStatus = connectStatus.jam?.let { jamStatusLabel(it) }
@@ -195,6 +202,12 @@ fun AppSidebar(
             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
             contentSpacing = 2.dp
         ) {
+            MillenniumSidebarItem(
+                label = profileLabel,
+                onClick = { navigator.navigate(Routes.Profiles) },
+                contentDescription = stringResource(Res.string.profiles_title),
+                icon = Iconsax.User
+            )
             val supportLabel = stringResource(Res.string.support_button_label)
             MillenniumSidebarItem(
                 label = supportLabel,

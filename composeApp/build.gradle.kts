@@ -317,12 +317,15 @@ kotlin {
             dependencies {
                 implementation(libs.newpipeextractor)
                 implementation(libs.ktor.client.okhttp)
+                // QR codes for the TV's QR login (pure Java encoder, no camera code).
+                implementation(libs.zxing.core)
             }
         }
         androidMain {
             dependsOn(mobileMain)
             dependsOn(androidJvmMain)
             dependencies {
+                implementation(project(":AndroidTV"))
                 implementation(libs.compose.uiToolingPreview)
                 implementation(libs.androidx.activity.compose)
                 implementation(libs.androidx.car.app)
@@ -375,6 +378,7 @@ kotlin {
 android {
     namespace = "org.spotube.spotube"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
+    compileSdkMinor = libs.versions.android.compileSdkMinor.get().toInt()
 
     defaultConfig {
         applicationId = bundleId
@@ -402,21 +406,65 @@ android {
         }
     }
 
+    // Release signing. Values come, in this order, from environment variables (set for one run by
+    // `scripts/signing/build-release.ps1`, which asks for the passwords without echoing them) or
+    // from `composeApp/local.properties` (`release.signing.*`, written by CI from its secrets).
+    // Passwords are never read from versioned files. See `docs/SIGNING.md`.
     val secretProps = Properties().apply {
         val propertiesFile = project.file("local.properties")
         if (propertiesFile.exists()) {
-            load(FileInputStream(propertiesFile))
+            FileInputStream(propertiesFile).use { load(it) }
+        }
+    }
+    fun signingValue(env: String, property: String): String? =
+        providers.environmentVariable(env).orNull?.takeIf { it.isNotBlank() }
+            ?: secretProps.getProperty(property)?.takeIf { it.isNotBlank() }
+
+    val releaseStoreFile = signingValue("SPOTUBE_SIGNING_STORE_FILE", "release.signing.storeFile")
+    val releaseStorePassword = signingValue("SPOTUBE_SIGNING_STORE_PASSWORD", "release.signing.storePassword")
+    val releaseKeyAlias = signingValue("SPOTUBE_SIGNING_KEY_ALIAS", "release.signing.keyAlias")
+    val releaseKeyPassword = signingValue("SPOTUBE_SIGNING_KEY_PASSWORD", "release.signing.keyPassword")
+        ?: releaseStorePassword
+
+    // A release build must carry the fork's own identity: never fall back to the debug key or an
+    // unsigned APK, since either would fail to update existing installations.
+    val buildsAndroidRelease = gradle.startParameter.taskNames.any { task ->
+        task.substringAfterLast(':').let { name ->
+            name.contains("Release") && (
+                name.startsWith("assemble") || name.startsWith("bundle") ||
+                    name.startsWith("package") || name.startsWith("install") ||
+                    name.startsWith("sign")
+                )
+        }
+    }
+    if (buildsAndroidRelease) {
+        val missing = buildList {
+            if (releaseStoreFile == null) add("store file (SPOTUBE_SIGNING_STORE_FILE)")
+            if (releaseStorePassword == null) add("store password (SPOTUBE_SIGNING_STORE_PASSWORD)")
+            if (releaseKeyAlias == null) add("key alias (SPOTUBE_SIGNING_KEY_ALIAS)")
+        }
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "Android release signing is not configured; missing: ${missing.joinToString()}. " +
+                    "Run scripts/signing/build-release.ps1 or see docs/SIGNING.md."
+            )
+        }
+        if (!file(releaseStoreFile!!).isFile) {
+            throw GradleException(
+                "Android release keystore not found at '$releaseStoreFile'. " +
+                    "Restore it from your backup (docs/SIGNING.md); do not create a new one, " +
+                    "or existing installations will refuse the update."
+            )
         }
     }
 
     signingConfigs {
         create("release") {
-            val storeFilePath = secretProps.getProperty("release.signing.storeFile")
-            if (!storeFilePath.isNullOrEmpty()) {
-                storeFile = file(storeFilePath)
-                storePassword = secretProps.getProperty("release.signing.storePassword")
-                keyAlias = secretProps.getProperty("release.signing.keyAlias")
-                keyPassword = secretProps.getProperty("release.signing.keyPassword")
+            if (releaseStoreFile != null) {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }
@@ -426,14 +474,9 @@ android {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release")
         }
-        getByName("debug") {
-            // Debug and release share the application id, so sign both with the release key
-            // when it's configured; otherwise one can't be installed over the other.
-            // Without local.properties signing (contributors) keep the default debug keystore.
-            if (signingConfigs.getByName("release").storeFile != null) {
-                signingConfig = signingConfigs.getByName("release")
-            }
-        }
+        // Debug keeps the default debug keystore, so everyday builds never need the release
+        // passwords. A debug build therefore cannot be installed over a release one (and vice
+        // versa) without uninstalling first.
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

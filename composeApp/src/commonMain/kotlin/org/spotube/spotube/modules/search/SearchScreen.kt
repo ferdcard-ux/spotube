@@ -91,6 +91,7 @@ import org.spotube.plugin_interfaces.plugin_apis.metadata.playlist.MetadataPlayl
 import org.spotube.plugin_interfaces.plugin_apis.metadata.search.MetadataSupportedSearchType
 import org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack
 import org.spotube.plugin_interfaces.plugin_apis.metadata.user.MetadataUser
+import org.spotube.spotube.LocalIsTv
 import org.spotube.spotube.core.audioplayer.AudioPlayerQueue
 import org.spotube.spotube.core.audioplayer.QueueEntry
 import org.spotube.spotube.core.jam.JamRole
@@ -99,6 +100,8 @@ import org.spotube.spotube.core.navigation.NavigationCommands
 import org.spotube.spotube.core.navigation.Routes
 import org.spotube.spotube.core.remote.RemotePlaybackController
 import org.spotube.spotube.core.share.ShareService
+import org.spotube.spotube.core.ui.LocalTvSearchKeyboard
+import org.spotube.spotube.core.ui.TvTextFieldGate
 import org.spotube.spotube.core.ui.component.AlbumCard
 import org.spotube.spotube.core.ui.component.ApplicationMainBar
 import org.spotube.spotube.core.ui.component.ArtistCard
@@ -155,6 +158,7 @@ import spotube.composeapp.generated.resources.search_warm_music_gods
 import spotube.composeapp.generated.resources.search_warm_records
 import spotube.composeapp.generated.resources.search_warm_speakers
 import spotube.composeapp.generated.resources.search_warm_vinyl
+import spotube.composeapp.generated.resources.tv_keyboard_show
 
 private val GridMinCellSize = 180.dp
 
@@ -188,8 +192,11 @@ fun SearchScreen(viewModel: SearchScreenViewModel = koinViewModel()) {
         emptyList()
     )
 
-    val isExpanded =
-        currentWindowWidthBreakpoint() isAtLeast WindowBreakpoints.Expanded && getPlatform().isDesktop()
+    val isTv = LocalIsTv.current
+    val isExpanded = isTv ||
+        (currentWindowWidthBreakpoint() isAtLeast WindowBreakpoints.Expanded && getPlatform().isDesktop())
+    val tvKeyboard = LocalTvSearchKeyboard.current
+    var showTvKeyboard by remember { mutableStateOf(false) }
 
     fun isTrackBlacklisted(track: MetadataTrack): Boolean {
         val trackIds = blacklistedTracks.map { it.id }.toSet()
@@ -206,14 +213,8 @@ fun SearchScreen(viewModel: SearchScreenViewModel = koinViewModel()) {
     val focusManager = LocalFocusManager.current
 
     fun playSingleTrack(track: MetadataTrack) {
-        scope.launch {
-            audioPlayerQueue.load(
-                entries = listOf(QueueEntry.StreamingTrack(track = track, url = "")),
-                autoPlay = true,
-                startPosition = 0,
-                collectionEntry = null
-            )
-        }
+        // On the active device (this one or the connected TV).
+        remotePlaybackController.playTracks(listOf(track))
     }
 
     fun handleTrackOptionsAction(track: MetadataTrack, action: TrackOptionsAction) {
@@ -225,7 +226,7 @@ fun SearchScreen(viewModel: SearchScreenViewModel = koinViewModel()) {
                     val existing = queue.find { entry ->
                         (entry as? QueueEntry.StreamingTrack)?.track?.id == track.id
                     }
-                    if (existing != null) {
+                    if (existing != null && !remotePlaybackController.isRemoteActive()) {
                         // Already in the local queue: move it to the next position
                         audioPlayerQueue.removeFromQueue(existing)
                         audioPlayerQueue.addAllAfterCurrent(
@@ -330,14 +331,15 @@ fun SearchScreen(viewModel: SearchScreenViewModel = koinViewModel()) {
                 recentSearchSuggestions = state.recentSearchSuggestions,
                 onRecentSearchClick = { search ->
                     viewModel.applyRecentSearch(search)
-                    focusManager.clearFocus()
+                    if (!isTv) focusManager.clearFocus()
                 },
                 onClearAllRecentSearches = {
                     viewModel.clearAllRecentSearches()
-                    focusManager.clearFocus()
+                    if (!isTv) focusManager.clearFocus()
                 },
             )
-        } else {
+        } else if (!isTv) {
+            // On TV the bar would be empty (no back button) and costs a fifth of the content height.
             ApplicationMainBar(backButton = false)
         }
         Column(
@@ -349,17 +351,49 @@ fun SearchScreen(viewModel: SearchScreenViewModel = koinViewModel()) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (isExpanded) {
-                    SearchBar(
-                        query = state.query,
-                        onQueryChange = viewModel::onQueryChange,
-                        recentSearchSuggestions = state.recentSearchSuggestions,
-                        onRecentSearchClick = { search ->
-                            viewModel.applyRecentSearch(search)
-                            focusManager.clearFocus()
+                    // On TV the keyboard button sits on the field's row, so Left/Right reach it
+                    // from the field instead of it being skipped by vertical navigation.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            SearchBar(
+                                query = state.query,
+                                onQueryChange = viewModel::onQueryChange,
+                                recentSearchSuggestions = state.recentSearchSuggestions,
+                                onRecentSearchClick = { search ->
+                                    viewModel.applyRecentSearch(search)
+                                    if (!isTv) focusManager.clearFocus()
+                                },
+                                onClearAllRecentSearches = {
+                                    viewModel.clearAllRecentSearches()
+                                    if (!isTv) focusManager.clearFocus()
+                                }
+                            )
+                        }
+                        if (isTv && tvKeyboard != null) {
+                            MillenniumButton(
+                                onClick = { showTvKeyboard = true },
+                                style = MillenniumButtonStyle.Secondary,
+                                modifier = Modifier.padding(end = 16.dp, bottom = 8.dp)
+                            ) {
+                                Text(stringResource(Res.string.tv_keyboard_show))
+                            }
+                        }
+                    }
+                }
+
+                // D-pad keyboard supplied by the TV shell. It edits the same ViewModel state as the
+                // regular field, so the phone/desktop path is untouched.
+                if (isTv && tvKeyboard != null && showTvKeyboard) {
+                    tvKeyboard(
+                        state.query,
+                        viewModel::onQueryChange,
+                        {
+                            if (!isTv) focusManager.clearFocus()
+                            showTvKeyboard = false
                         },
-                        onClearAllRecentSearches = {
-                            viewModel.clearAllRecentSearches()
-                            focusManager.clearFocus()
+                        {
+                            if (!isTv) focusManager.clearFocus()
+                            showTvKeyboard = false
                         }
                     )
                 }
@@ -535,6 +569,12 @@ private fun SearchBar(
         }
     }
 
+    TvTextFieldGate(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 8.dp)
+    ) { fieldModifier ->
     MillenniumAutocomplete(
         state = searchState,
         suggestions = recentSearchSuggestions,
@@ -549,10 +589,7 @@ private fun SearchBar(
             )
         },
         placeholder = stringResource(Res.string.search_placeholder),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 8.dp),
+        modifier = fieldModifier.fillMaxWidth(),
         menuHeader = if (hasRecentSearchSuggestions) {
             {
                 MillenniumListTile(
@@ -582,6 +619,7 @@ private fun SearchBar(
             null
         }
     )
+    }
 }
 
 @Composable

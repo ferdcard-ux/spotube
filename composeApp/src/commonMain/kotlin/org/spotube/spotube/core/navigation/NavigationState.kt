@@ -17,6 +17,7 @@
 
 package org.spotube.spotube.core.navigation
 
+import org.spotube.spotube.LocalIsTv
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -57,6 +58,12 @@ val serializersConfig = SavedStateConfiguration {
             subclass(Routes.Settings::class, Routes.Settings.serializer())
             subclass(Routes.Plugins::class, Routes.Plugins.serializer())
             subclass(Routes.WebView::class, Routes.WebView.serializer())
+            subclass(Routes.Profiles::class, Routes.Profiles.serializer())
+            subclass(Routes.QrLogin::class, Routes.QrLogin.serializer())
+            subclass(Routes.Lyrics::class, Routes.Lyrics.serializer())
+            subclass(Routes.SavedTracks::class, Routes.SavedTracks.serializer())
+            subclass(Routes.RemoteControl::class, Routes.RemoteControl.serializer())
+            subclass(Routes.JamSettings::class, Routes.JamSettings.serializer())
             subclass(Routes.Playlist::class, Routes.Playlist.serializer())
             subclass(Routes.Artist::class, Routes.Artist.serializer())
             subclass(Routes.Album::class, Routes.Album.serializer())
@@ -121,9 +128,13 @@ fun rememberNavigationState(
 fun NavigationState.toEntries(
     entryProvider: (NavKey) -> NavEntry<NavKey>
 ): SnapshotStateList<NavEntry<NavKey>> {
+    val isTv = LocalIsTv.current
     val decoratedEntries = backStacks.mapValues { (_, stack) ->
-        val decorators = listOf(
-            rememberSaveableStateHolderNavEntryDecorator<NavKey>())
+        // The TV focus decorator stores its focused child in the entry's saveable state, so it
+        // must come after the saveable state holder.
+        val decorators = listOfNotNull(
+            rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
+            if (isTv) rememberTvEntryFocusDecorator() else null)
         rememberDecoratedNavEntries(
             backStack = stack,
             entryDecorators = decorators,

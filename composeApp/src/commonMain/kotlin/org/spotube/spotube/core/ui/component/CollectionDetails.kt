@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import org.spotube.spotube.core.ui.misc.TextWithShimmer
+import org.spotube.spotube.core.ui.tvKeepFocusWhileBusy
 import org.spotube.spotube.core.ui.misc.shimmerApply
 import org.spotube.spotube.resources.iconsax.Iconsax
 import org.spotube.spotube.resources.iconsax.IconsaxAddSquare
@@ -129,7 +130,7 @@ fun CollectionDetails(
                     }
 
                     MillenniumButton(
-                        modifier = modifier,
+                        modifier = modifier.tvKeepFocusWhileBusy(isPlayLoading),
                         onClick = onPlay,
                         loading = isPlayLoading) {
                         MillenniumIcon(
@@ -138,7 +139,7 @@ fun CollectionDetails(
                         TextWithShimmer(text = if (isPlaying) stringResource(Res.string.player_pause_content_description) else stringResource(Res.string.player_play_content_description))
                     }
                     MillenniumButton(
-                        modifier = modifier,
+                        modifier = modifier.tvKeepFocusWhileBusy(isShuffleLoading),
                         onClick = onShufflePlay,
                         loading = isShuffleLoading,
                         style = MillenniumButtonStyle.Secondary
@@ -153,6 +154,7 @@ fun CollectionDetails(
         val actions = @Composable {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MillenniumIconButton(
+                    modifier = Modifier.tvKeepFocusWhileBusy(isAddToQueueLoading),
                     onClick = onAddToQueue,
                     loading = isAddToQueueLoading,
                     style = MillenniumIconButtonStyle.Quiet) {

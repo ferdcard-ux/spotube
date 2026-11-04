@@ -17,6 +17,9 @@
 
 package org.spotube.spotube.modules.shell
 
+import org.spotube.spotube.modules.devices.RemoteControlScreen
+import org.spotube.spotube.modules.devices.RemoteFloatingPlayer
+import org.spotube.spotube.modules.devices.PlaybackDeviceViewModel
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -61,6 +64,7 @@ import com.composeunstyled.rememberBottomSheetState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import org.spotube.spotube.core.navigation.NavigationCommands
+import org.spotube.spotube.core.navigation.NavigationCommandsEffect
 import org.spotube.spotube.core.navigation.NavigationState
 import org.spotube.spotube.core.navigation.Navigator
 import org.spotube.spotube.core.navigation.Routes
@@ -91,8 +95,12 @@ fun AppShell(
     viewModel: AppShellViewModel = koinViewModel<AppShellViewModel>(),
     queueViewModel: PlayerQueueContentViewModel = koinViewModel<PlayerQueueContentViewModel>(),
     alternativeViewModel: AlternativeTrackContentViewModel = koinViewModel<AlternativeTrackContentViewModel>(),
+    deviceViewModel: PlaybackDeviceViewModel = koinViewModel<PlaybackDeviceViewModel>(),
     content: @Composable () -> Unit
 ) {
+    // While a connected device is the active one, the players show and control that device.
+    val deviceState by deviceViewModel.uiState.collectAsState()
+    val isRemoteActive = deviceState.isRemoteActive
     val navigatorCommands: NavigationCommands = koinInject()
     val remotePlaybackController: RemotePlaybackController = koinInject()
     val snackbarHostState = remember { MillenniumSnackbarHostState() }
@@ -105,24 +113,7 @@ fun AppShell(
     val isAlternativeVisible by alternativeViewModel.isAlternativeVisible.collectAsState()
     val isLyricsOverlayVisible by viewModel.isLyricsOverlayVisible.collectAsState()
 
-    LaunchedEffect(navigatorCommands, navigator) {
-        launch {
-            navigatorCommands.navigationCommandFlow.collect { route ->
-                navigator.navigate(route)
-            }
-        }
-        launch {
-            navigatorCommands.navigationPopCommandFlow.collect { route ->
-                navigationState.backStacks[navigationState.topLevelRoute]?.let { backStack ->
-                    backStack.lastOrNull()?.let { currentRoute ->
-                        if (route == null || route == currentRoute) {
-                            navigator.pop()
-                        }
-                    }
-                }
-            }
-        }
-    }
+    NavigationCommandsEffect(navigator, navigationState)
 
     // Onboarding is a bootstrap, full-screen destination. It draws its own app bar (and thus
     // the desktop window controls), so render it without the sidebar, players or bottom bar.
@@ -172,12 +163,20 @@ fun AppShell(
                                 content()
                             }
                         }
-                        AppLargePlayer(
-                            hazeState = hazeState,
-                            modifier = Modifier.fillMaxWidth(),
-                            onQueue = queueViewModel::toggleQueueVisibility,
-                            onAlternativeSource = alternativeViewModel::toggleAlternativeVisibility,
-                            onLyrics = { navigatorCommands.navigateTo(Routes.Lyrics) })
+                        if (isRemoteActive) {
+                            RemoteFloatingPlayer(
+                                modifier = Modifier.fillMaxWidth(),
+                                bottomBleed = 0.dp,
+                                viewModel = deviceViewModel
+                            )
+                        } else {
+                            AppLargePlayer(
+                                hazeState = hazeState,
+                                modifier = Modifier.fillMaxWidth(),
+                                onQueue = queueViewModel::toggleQueueVisibility,
+                                onAlternativeSource = alternativeViewModel::toggleAlternativeVisibility,
+                                onLyrics = { navigatorCommands.navigateTo(Routes.Lyrics) })
+                        }
                     }
 
                     if (isQueueVisible) {
@@ -234,6 +233,28 @@ fun AppShell(
                         onQueue = queueViewModel::toggleQueueVisibility,
                         onAlternativeSource = alternativeViewModel::toggleAlternativeVisibility,
                         onExpandLyrics = viewModel::showLyricsOverlay,
+                        floatingPlayer = if (isRemoteActive) {
+                            { modifier -> RemoteFloatingPlayer(modifier = modifier, viewModel = deviceViewModel) }
+                        } else {
+                            { modifier -> AppFloatingPlayer(modifier = modifier) }
+                        },
+                        expandedPlayer = if (isRemoteActive) {
+                            { modifier, onCollapse ->
+                                Box(modifier = modifier) {
+                                    RemoteControlScreen(onDisconnect = onCollapse, onCollapse = onCollapse)
+                                }
+                            }
+                        } else {
+                            { modifier, onCollapse ->
+                                AppExpandedPlayer(
+                                    modifier = modifier,
+                                    onCollapse = onCollapse,
+                                    onQueue = queueViewModel::toggleQueueVisibility,
+                                    onAlternativeSource = alternativeViewModel::toggleAlternativeVisibility,
+                                    onExpandLyrics = viewModel::showLyricsOverlay
+                                )
+                            }
+                        },
                         content = content
                     )
 

@@ -19,6 +19,7 @@ package org.spotube.spotube.modules.library.playlist
 
 
 import org.spotube.spotube.core.ui.component.AdaptiveDialogBottomSheet
+import org.spotube.spotube.core.ui.TvTextFieldGate
 import org.spotube.millennium.composables.MillenniumIcon
 import org.spotube.millennium.composables.MillenniumButton
 import org.spotube.millennium.composables.MillenniumButtonStyle
@@ -138,11 +139,13 @@ fun AddToPlaylistPicker(
                 MillenniumIcon(
                     imageVector = Iconsax.IconsaxFilterSearch,
                     contentDescription = stringResource(Res.string.library_add_to_playlist_search_content_description))
-                MillenniumTextField(
-                    state = searchState,
-                    
-                    modifier = Modifier.weight(1f),
-                    placeholder = stringResource(Res.string.library_add_to_playlist_search_placeholder))
+                TvTextFieldGate(modifier = Modifier.weight(1f)) { fieldModifier ->
+                    MillenniumTextField(
+                        state = searchState,
+                        
+                        modifier = fieldModifier.fillMaxWidth(),
+                        placeholder = stringResource(Res.string.library_add_to_playlist_search_placeholder))
+                }
             }
 
             PlaylistPickerContent(

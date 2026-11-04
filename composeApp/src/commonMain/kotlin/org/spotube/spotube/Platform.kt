@@ -17,6 +17,9 @@
 
 package org.spotube.spotube
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
+
 enum class PlatformType {
     Android, IOS, Windows, Linux, MacOS, Unknown
 }
@@ -29,6 +32,22 @@ interface Platform {
 expect fun getPlatform(): Platform
 
 expect fun openUrlInBrowser(url: String)
+
+/**
+ * True when the current device is an Android TV / Leanback device. Implementations on desktop and
+ * iOS always return false, so the TV layer stays Android-only without branching on platform type.
+ */
+expect fun isTelevision(): Boolean
+
+/**
+ * Configuration-aware variant used by Composables. Android resolves it from the activity context
+ * and falls back to the package-manager Leanback/Television features; other targets return false.
+ */
+@Composable
+expect fun rememberIsTv(): Boolean
+
+/** Composition-local flag installed by the TV root, so shared screens can adapt their layout. */
+val LocalIsTv = staticCompositionLocalOf { false }
 
 fun Platform.isDesktop(): Boolean {
     return type == PlatformType.Windows ||

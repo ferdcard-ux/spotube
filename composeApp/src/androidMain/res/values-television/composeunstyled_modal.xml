@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Overrides composeunstyled's `Modal` window theme on Android TV only.
+
+  composeunstyled hosts dropdown/modal content in a ComponentDialog whose window is wrap_content.
+  On a 1920px TV it is laid out as a centered 880px window, but the library positions the
+  dropdown panel in full-screen coordinates, so every menu is clamped against that window's right
+  edge instead of opening under its anchor. A 100% minimum width makes the window span the
+  screen, which is what the library assumes.
+-->
+<resources>
+    <style name="Modal" parent="Modal.Base">
+        <item name="android:windowMinWidthMajor">100%</item>
+        <item name="android:windowMinWidthMinor">100%</item>
+    </style>
+</resources>

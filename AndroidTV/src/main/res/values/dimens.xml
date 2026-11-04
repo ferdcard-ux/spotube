@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (C) 2026 Kingkor Roy Tirtho and Spotube Contributors
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+
+<resources>
+    <!-- 10-foot layout constants. Mirrored in Kotlin by org.spotube.tv.theme.TvDimens. -->
+    <dimen name="tv_overscan_h">48dp</dimen>
+    <dimen name="tv_overscan_v">27dp</dimen>
+    <dimen name="tv_rail_width">96dp</dimen>
+    <dimen name="tv_rail_item_height">64dp</dimen>
+    <dimen name="tv_min_target">56dp</dimen>
+    <dimen name="tv_focus_ring">3dp</dimen>
+    <dimen name="tv_grid_cell">280dp</dimen>
+    <dimen name="tv_gutter">16dp</dimen>
+    <dimen name="tv_mini_player_height">96dp</dimen>
+</resources>

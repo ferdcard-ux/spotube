@@ -18,6 +18,7 @@
 package org.spotube.spotube.modules.shell
 
 
+import org.spotube.spotube.modules.devices.PlaybackDeviceButton
 import org.spotube.millennium.composables.MillenniumDropdownMenuItem
 import org.spotube.spotube.resources.iconsax.IconsaxCd
 import org.spotube.spotube.resources.iconsax.IconsaxMoon
@@ -400,6 +401,7 @@ fun AppLargePlayer(
                     horizontalAlignment = Alignment.End
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        PlaybackDeviceButton()
                         MillenniumIconButton(
                             style = MillenniumIconButtonStyle.Quiet, onClick = onQueue
                         ) {

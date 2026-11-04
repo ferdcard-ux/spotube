@@ -154,6 +154,12 @@
     <string name="settings_accent_metallic_slate">Pizarra metálica</string>
 
     <string name="settings_appearance_title">Aspecto y estilo</string>
+    <string name="settings_tv_scale_title">Tamaño del contenido (TV)</string>
+    <string name="settings_tv_scale_subtitle_current">Tamaño con el que se dibujan las pantallas en la TV. Actual: %1$s</string>
+    <string name="settings_tv_scale_auto">Automático</string>
+    <string name="settings_tv_scale_percent">%1$d %</string>
+    <string name="settings_keep_screen_on_title">Mantener la pantalla encendida</string>
+    <string name="settings_keep_screen_on_subtitle">Evita el protector de pantalla y la suspensión mientras Spotube está en pantalla.</string>
     <string name="settings_appearance_subtitle_current">Material de superficie y acento. Actual: %1$s · %2$s</string>
     <string name="settings_appearance_dialog_title">Aspecto y estilo</string>
     <string name="settings_appearance_dialog_description">Elige un material de superficie y luego un acento que combine con él. Cada opción es una combinación seleccionada.</string>
@@ -929,4 +935,63 @@
     <string name="media_browser_featured">Destacados</string>
     <string name="media_browser_saved_tracks">Canciones guardadas</string>
     <string name="media_browser_top_tracks">Canciones populares</string>
+
+    <!-- Android TV -->
+    <string name="tv_seek_backward">Retroceder 10 segundos</string>
+    <string name="tv_seek_forward">Avanzar 10 segundos</string>
+    <string name="tv_seek_bar">Posición de reproducción. Izquierda/derecha salta 10 segundos</string>
+    <string name="tv_keyboard_show">Abrir teclado</string>
+    <string name="tv_keyboard_hide">Cerrar teclado</string>
+    <string name="tv_keyboard_clear">Borrar</string>
+    <string name="tv_keyboard_backspace">Retroceso</string>
+    <string name="tv_keyboard_space">Espacio</string>
+    <string name="tv_keyboard_search">Buscar</string>
+
+    <!-- Profiles -->
+    <string name="profiles_title">Perfiles</string>
+    <string name="profiles_description">Cada perfil guarda sus propias cuentas, cola y lista negra. Los ajustes y los plugins instalados son comunes. Cambiar de perfil reinicia la app.</string>
+    <string name="profiles_main_name">Principal</string>
+    <string name="profiles_active">Perfil activo</string>
+    <string name="profiles_switch_hint">Selecciónalo para cambiar a este perfil</string>
+    <string name="profiles_add">Añadir perfil</string>
+    <string name="profiles_rename">Renombrar perfil</string>
+    <string name="profiles_delete">Eliminar perfil</string>
+    <string name="profiles_delete_confirm">¿Eliminar el perfil «%1$s» y sus cuentas guardadas? No se puede deshacer.</string>
+    <string name="profiles_name_label">Nombre del perfil</string>
+    <string name="profiles_accounts">Cuentas de este perfil</string>
+    <string name="profiles_restart_required">Se cambió el perfil. Cierra y vuelve a abrir Spotube para usarlo.</string>
+    <string name="profiles_rail_label">Perfil</string>
+
+    <!-- QR login -->
+    <string name="qr_login_title">Iniciar sesión con el teléfono</string>
+    <string name="qr_login_step_1">1. En tu teléfono, abre Spotube e inicia sesión en Spotify.</string>
+    <string name="qr_login_step_2">2. Escanea este código con la cámara del teléfono.</string>
+    <string name="qr_login_step_3">3. Confirma en el teléfono para enviar tu sesión a esta TV.</string>
+    <string name="qr_login_note">El teléfono y la TV deben estar en la misma red Wi-Fi. La sesión viaja cifrada y no se envía ninguna contraseña.</string>
+    <string name="qr_login_starting">Preparando el código…</string>
+    <string name="qr_login_waiting">Esperando al teléfono en %1$s…</string>
+    <string name="qr_login_received">Sesión recibida de %1$s. Reiniciando…</string>
+    <string name="qr_login_restart_required">Sesión recibida de %1$s. Cierra y vuelve a abrir Spotube para usarla.</string>
+    <string name="qr_login_unavailable">No se puede mostrar el código: este dispositivo no está conectado a una red local.</string>
+    <string name="qr_login_plugin_missing">%1$s envió una sesión para un plugin que esta TV no tiene instalado.</string>
+    <string name="qr_login_use_web">Iniciar sesión en esta TV</string>
+    <string name="qr_login_page_title">Inicio de sesión de Spotube</string>
+    <string name="qr_login_page_body">Abriendo Spotube en este teléfono para enviar tu sesión a la TV. Si no se abre, instala Spotube, inicia sesión y vuelve a escanear el código.</string>
+    <string name="qr_login_page_open">Abrir Spotube</string>
+    <string name="qr_login_send_title">Enviar sesión a la TV</string>
+    <string name="qr_login_send_confirm">¿Enviar tu sesión de %1$s a la TV en %2$s? La TV usará tu cuenta.</string>
+    <string name="qr_login_send_action">Enviar</string>
+    <string name="qr_login_send_sending">Enviando…</string>
+    <string name="qr_login_send_sent">Sesión enviada. La TV se reiniciará con tu cuenta.</string>
+    <string name="qr_login_send_not_signed_in">Inicia sesión en Spotube en este teléfono y vuelve a escanear el código.</string>
+    <string name="qr_login_send_failed">No se pudo enviar. Comprueba que el teléfono y la TV están en la misma red y vuelve a escanear el código.</string>
+    <string name="qr_login_send_unsupported">Este dispositivo no admite el inicio de sesión por QR.</string>
+
+    <!-- Playback device -->
+    <string name="playback_device_button">Dispositivo de reproducción</string>
+    <string name="playback_device_picker_title">Reproducir en</string>
+    <string name="playback_device_this_device">Este dispositivo</string>
+    <string name="playback_device_playing_on">Reproduciendo en %1$s</string>
+    <string name="playback_device_transfer_note">Al cambiar se mueven la cola y la posición actual; el otro dispositivo se pausa.</string>
+    <string name="playback_device_collapse">Minimizar reproductor</string>
 </resources>

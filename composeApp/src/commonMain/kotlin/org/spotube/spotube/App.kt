@@ -17,6 +17,8 @@
 
 package org.spotube.spotube
 
+import androidx.compose.ui.keepScreenOn
+import org.spotube.spotube.modules.qrlogin.QrLoginSendHost
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.foundation.layout.Box
@@ -48,7 +50,6 @@ import org.spotube.spotube.core.ui.theming.SpotubeTheme
 import org.spotube.spotube.modules.library.LibraryTab
 import org.spotube.spotube.modules.settings.SettingsRepository
 import org.spotube.spotube.modules.settings.UserSettings
-import org.spotube.spotube.modules.shell.AppShell
 import org.spotube.spotube.modules.support.LocalSupportPrompt
 import org.spotube.spotube.modules.support.SupportDialog
 import org.spotube.spotube.modules.support.SupportReminderIntervalMillis
@@ -217,12 +218,18 @@ fun App(
                 supportDialogIsReminder = false
                 showSupportDialog = true
             }) {
-                Box(modifier = Modifier.fillMaxSize()) {
+                // TVs start their screensaver while music plays unless the window asks to stay on.
+                val keepScreenOn = userSettings.keepScreenOn ?: isTelevision()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (keepScreenOn) Modifier.keepScreenOn() else Modifier)
+                ) {
                     val currentRoute =
                         navigationState.backStacks[navigationState.topLevelRoute]?.last()
 
                     Box(Modifier.fillMaxSize()) {
-                        AppShell(navigator, navigationState) {
+                        AppShellHost(navigator, navigationState) {
                             SharedTransitionLayout {
                                 CompositionLocalProvider(
                                     LocalSharedTransitionScope provides this@SharedTransitionLayout
@@ -247,6 +254,8 @@ fun App(
                     }
                 }
                 content()
+                // Asks before sending this device's session to a TV that showed a login QR.
+                QrLoginSendHost()
                 availableAppUpdate?.let { update ->
                     AppUpdateDialog(
                         update = update,

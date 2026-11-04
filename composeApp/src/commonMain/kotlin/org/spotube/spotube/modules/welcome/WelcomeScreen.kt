@@ -40,12 +40,17 @@ import androidx.compose.foundation.layout.widthIn
 import org.spotube.spotube.core.ui.theming.AppTheme
 import com.composeunstyled.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.spotube.spotube.LocalIsTv
 import org.spotube.spotube.core.ui.component.ApplicationMainBar
 import org.spotube.spotube.modules.welcome.pages.BrandingPage
 import org.spotube.spotube.modules.welcome.pages.DonationPage
@@ -154,6 +159,12 @@ private fun WelcomeStepSwitcher(
 private fun WelcomeActionBar(
     state: WelcomeUiState,
     viewModel: WelcomeViewModel) {
+    // TV has no pointer: start the D-pad on the forward action instead of an arbitrary node.
+    val isTv = LocalIsTv.current
+    val primaryFocus = remember { FocusRequester() }
+    LaunchedEffect(isTv) {
+        if (isTv) runCatching { primaryFocus.requestFocus() }
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -162,7 +173,8 @@ private fun WelcomeActionBar(
         Spacer(Modifier.weight(1f))
         MillenniumButton(
             onClick = viewModel::onPrimary,
-            style = MillenniumButtonStyle.Secondary) {
+            style = MillenniumButtonStyle.Secondary,
+            modifier = Modifier.focusRequester(primaryFocus)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)) {

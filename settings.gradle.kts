@@ -18,6 +18,11 @@
 rootProject.name = "Spotube"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
+// Android TV layer. A pure Android library consumed by :composeApp; it never depends on the
+// app module (AGP forbids library -> application), so the app installs the TV content through
+// TvBridge (see AndroidTV/PLAN.md §3.1).
+include(":AndroidTV")
+
 pluginManagement {
     repositories {
         mavenLocal()

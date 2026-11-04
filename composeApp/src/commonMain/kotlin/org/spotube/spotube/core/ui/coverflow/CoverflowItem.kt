@@ -29,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
+import org.spotube.spotube.LocalIsTv
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
@@ -68,7 +70,7 @@ internal fun CoverflowItem(
                 val interactionSource = remember { MutableInteractionSource() }
                 if (geometry.params.mirror) {
                     Mirror(
-                        modifier = Modifier.clickable(
+                        modifier = Modifier.tvNotFocusable().clickable(
                             interactionSource = interactionSource,
                             indication = null,
                             onClick = onClickHandler),
@@ -77,7 +79,7 @@ internal fun CoverflowItem(
                     }
                 } else {
                     Box(
-                        modifier = Modifier.clickable(
+                        modifier = Modifier.tvNotFocusable().clickable(
                             interactionSource = interactionSource,
                             indication = null,
                             onClick = onClickHandler)) {
@@ -88,3 +90,11 @@ internal fun CoverflowItem(
         }
     }
 }
+
+/**
+ * On TV the cover itself is the D-pad target (it has the focus ring and opens the item); this
+ * wrapper only scrolls on touch, so it must not take focus there. Off TV it is unchanged.
+ */
+@Composable
+internal fun Modifier.tvNotFocusable(): Modifier =
+    if (LocalIsTv.current) focusProperties { canFocus = false } else this

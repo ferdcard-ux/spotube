@@ -18,6 +18,7 @@
 package org.spotube.spotube.modules.library
 
 import androidx.compose.foundation.layout.Arrangement
+import org.spotube.spotube.core.ui.TvTextFieldGate
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
@@ -49,6 +50,7 @@ import org.spotube.spotube.core.ui.component.ApplicationMainBar
 import org.spotube.spotube.modules.downloads.DownloadsScreen
 import org.spotube.spotube.modules.library.album.LibraryAlbumsScreen
 import org.spotube.spotube.modules.library.artist.LibraryArtistsScreen
+import org.spotube.spotube.LocalIsTv
 import org.spotube.spotube.modules.library.local_tracks.LibraryLocalTracksScreen
 import org.spotube.spotube.modules.library.playlist.LibraryPlaylistsScreen
 import org.spotube.spotube.resources.iconsax.Iconsax
@@ -81,11 +83,14 @@ fun LibraryScreen(libraryState: LibraryState = koinInject()) {
     val viewMode = state.viewModeOverride ?: defaultLibraryViewMode(isCompact)
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
+    // The TV shell owns the section tabs (they render in TvShell's top bar), so the in-screen
+    // LazyRow must not duplicate them.
+    val showSectionTabs = !expandedDesktop && !LocalIsTv.current
 
     if (state.currentTab == LibraryTab.Downloads && !isCompact) {
         DownloadsScreen(
             headerInAppBar = true,
-            topContent = { if (!expandedDesktop) LibraryTabs(state, libraryState::onTabSelected) }
+            topContent = { if (showSectionTabs) LibraryTabs(state, libraryState::onTabSelected) }
         )
         return
     }
@@ -112,7 +117,7 @@ fun LibraryScreen(libraryState: LibraryState = koinInject()) {
                 )
             }
         )
-        if (!expandedDesktop) {
+        if (showSectionTabs) {
             LibraryTabs(state, libraryState::onTabSelected)
         }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
@@ -255,11 +260,12 @@ private fun LibraryFilterField(
     LaunchedEffect(autoFocus) {
         if (autoFocus) focusRequester.requestFocus()
     }
-    MillenniumTextField(
-        state = state,
-        placeholder = stringResource(placeholder),
-        minimumHeight = 36.dp,
-        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-        modifier = modifier.padding(vertical = 4.dp).focusRequester(focusRequester)
-    )
+    TvTextFieldGate(modifier = modifier.padding(vertical = 4.dp).focusRequester(focusRequester)) { fieldModifier ->
+        MillenniumTextField(
+            state = state,
+            placeholder = stringResource(placeholder),
+            minimumHeight = 36.dp,
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+            modifier = fieldModifier.fillMaxWidth())
+    }
 }

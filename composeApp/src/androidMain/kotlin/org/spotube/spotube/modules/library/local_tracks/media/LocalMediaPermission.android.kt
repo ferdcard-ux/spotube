@@ -28,10 +28,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import org.spotube.spotube.core.platform.isTelevisionDevice
 
 @Composable
 actual fun rememberLocalMediaPermissionState(): LocalMediaPermissionState {
     val context = LocalContext.current
+    // Televisions do not show the runtime permission dialog reliably and usually have no local
+    // media library; treat the permission as granted so the section is never blocked.
+    if (context.isTelevisionDevice()) {
+        return LocalMediaPermissionState(
+            isGranted = true,
+            requestPermission = {})
+    }
+
     val permission = remember {
         if (Build.VERSION.SDK_INT >= 33) {
             Manifest.permission.READ_MEDIA_AUDIO

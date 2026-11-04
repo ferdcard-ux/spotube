@@ -18,6 +18,7 @@
 package org.spotube.spotube.modules.jam
 
 import org.spotube.millennium.composables.MillenniumDropdownMenuItem
+import org.spotube.spotube.core.ui.TvTextFieldGate
 import org.spotube.spotube.resources.iconsax.IconsaxUserRemove
 import org.spotube.spotube.resources.iconsax.IconsaxForbidden
 import androidx.compose.foundation.Canvas
@@ -188,17 +189,18 @@ internal fun SetupPanel(
                 color = AppTheme.colors.onSurfaceVariant
             )
         } else {
-            MillenniumTextField(
-                state = state.codeInput,
-                label = stringResource(Res.string.jam_setup_code_label),
-                placeholder = stringResource(Res.string.jam_setup_code_placeholder),
-                enabled = !state.isBusy,
-                textStyle = AppTheme.typography.headlineSmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 4.sp
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
+            TvTextFieldGate(modifier = Modifier.fillMaxWidth()) { fieldModifier ->
+                MillenniumTextField(
+                    state = state.codeInput,
+                    label = stringResource(Res.string.jam_setup_code_label),
+                    placeholder = stringResource(Res.string.jam_setup_code_placeholder),
+                    enabled = !state.isBusy,
+                    textStyle = AppTheme.typography.headlineSmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 4.sp
+                    ),
+                    modifier = fieldModifier.fillMaxWidth())
+            }
         }
         MillenniumButton(
             onClick = if (state.setupMode == JamSetupMode.Create) onCreate else onJoin,

@@ -94,6 +94,7 @@ fun Coverflow(
             modifier = Modifier
                 .fillMaxHeight()
                 .align(Alignment.CenterStart)
+                .tvNotFocusable()
                 .clickable {
                     if (state.selectedIndex > 0) {
                         state.scrollToItem(state.selectedIndex - 1)
@@ -103,6 +104,7 @@ fun Coverflow(
             modifier = Modifier
                 .fillMaxHeight()
                 .align(Alignment.CenterEnd)
+                .tvNotFocusable()
                 .clickable {
                     state.scrollToItem(state.selectedIndex + 1)
                 }) {}
