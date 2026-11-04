@@ -1,5 +1,6 @@
 package org.spotube.spotube.core.audioplayer
 
+import org.spotube.spotube.core.profile.ProfileStore
 import org.spotube.plugin_interfaces.plugin_apis.metadata.artist.MetadataArtist
 import org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack
 import org.spotube.spotube.core.db.Database
@@ -10,7 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class FakeBlacklistRepository : BlacklistRepository(
-    database = Database(Paths())
+    database = Database(Paths(), ProfileStore(Paths()))
 ) {
     private val _blacklistedTracks = MutableStateFlow<List<MetadataTrack>>(emptyList())
     override val blacklistedTracks: Flow<List<MetadataTrack>> = _blacklistedTracks.asStateFlow()

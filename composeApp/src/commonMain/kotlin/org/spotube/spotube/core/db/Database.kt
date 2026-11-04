@@ -26,9 +26,13 @@ import org.spotube.spotube.core.paths.Paths
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import okio.SYSTEM
+import org.spotube.spotube.core.profile.ProfileStore
 
 @Suppress("EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
-class Database(val paths: Paths) {
+class Database(val paths: Paths, profileStore: ProfileStore) {
+    /** Data stores that belong to the active profile (account sessions, queue, blacklist). */
+    private val profileDir: String = profileStore.activeDataDir
+
     /**
      * True when Spotube had already written its own data before this process started. Captured
      * synchronously at construction time — the earliest point, before any eager service can
@@ -49,7 +53,7 @@ class Database(val paths: Paths) {
     }
     val pluginsDataStore: DataStore<Preferences> by lazy {
         PreferenceDataStoreFactory.createWithPath(
-            produceFile = { "${paths.getApplicationDataDirPath()}/spotube_plugins.preferences_pb".toPath() }
+            produceFile = { "$profileDir/spotube_plugins.preferences_pb".toPath() }
         )
     }
 
@@ -61,7 +65,7 @@ class Database(val paths: Paths) {
 
     val audioPlayerQueueDataStore: DataStore<Preferences> by lazy {
         PreferenceDataStoreFactory.createWithPath(
-            produceFile = { "${paths.getApplicationDataDirPath()}/spotube_audio_player_queue.preferences_pb".toPath() }
+            produceFile = { "$profileDir/spotube_audio_player_queue.preferences_pb".toPath() }
         )
     }
 
@@ -73,7 +77,7 @@ class Database(val paths: Paths) {
 
     val blacklistDataStore: DataStore<Preferences> by lazy {
         PreferenceDataStoreFactory.createWithPath(
-            produceFile = { "${paths.getApplicationDataDirPath()}/spotube_blacklist.preferences_pb".toPath() }
+            produceFile = { "$profileDir/spotube_blacklist.preferences_pb".toPath() }
         )
     }
 
