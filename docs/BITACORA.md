@@ -1369,6 +1369,48 @@ Release firmado (SHA-256 `a6369009…34a2`) en la TV Caixun (`adb install -r`) y
 
 ---
 
+## 25. Build — Versión de escritorio para Windows y preparación de Linux
+
+### Problema
+Compilar la versión de escritorio para Windows en este equipo y preparar la de Linux, que se compilará en otro equipo clonando el repositorio.
+
+### Decisiones del usuario
+- **Windows:** instalador `.exe` **sin firma Authenticode** por ahora, verificable por su SHA-256.
+- **Linux:** solo `.deb`.
+
+### Solución Aplicada
+- **Windows:**
+  - `:composeApp:packageGraalvmExe -Pnightly=false`, con `GITHUB_TOKEN` (de `gh auth token`) solo en ese proceso, para el límite de la API al buscar GraalVM.
+  - ComposeNativeWebview ya estaba en `~/.m2`, con `compose_webview_windows.dll` y `WebView2Loader.dll`. Visual Studio Build Tools y Rust ya estaban instalados.
+- **Linux:** `scripts/linux/build-deb.sh` (Debian/Ubuntu). Pide confirmación antes de instalar:
+  - paquetes `apt` (compilación, GTK/WebKitGTK, `patchelf`, JDK 21 y librerías de ejecución);
+  - Rust;
+  - el SDK de Android (command-line tools 19.0, `platforms;android-37`, `build-tools;37.0.0`; muestra las licencias).
+  - Después compila ComposeNativeWebview en el commit fijado por el CI (lo lee de `spotube-release-binary.yml`) con su librería de Linux, lo publica en `~/.m2`, ejecuta `packageGraalvmDeb` y muestra la ruta y el SHA-256.
+- **Guía:** `docs/BUILD-DESKTOP.md`.
+
+### Verificación
+- **Compilación:** `BUILD SUCCESSFUL in 7m 29s`.
+- **Instalador:** `composeApp/build/compose/binaries/main/graalvm-exe/spotube-6.0.0-win-x64.exe`.
+  - Tamaño: 60 385 769 bytes.
+  - SHA-256: `2F2E28E3F9AB0EF02DE962B049DA5054484E1A68252666C823641F95F0E1CB57`.
+  - `Get-AuthenticodeSignature`: `NotSigned` (esperado).
+- **Prueba de arranque:** se ejecutó `graalvm-app/org.spotube.spotube/spotube.exe` sin instalar nada. A los 20 s seguía en marcha con la ventana «Spotube» (~200 MB) y se cerró.
+
+### Alcance del cambio
+- **Instalador sin firma:** SmartScreen mostrará «editor desconocido» al instalarlo.
+- **Script de Linux:** solo se ha escrito, no se ha ejecutado. Pide `sudo` para `apt` y descarga Rust y las herramientas del SDK de Android de sus sitios oficiales.
+
+### No verificado / atajos de prueba
+- **Instalador de Windows:** no se instaló ni se probó dentro de la app (reproducción, WebView de login).
+- **Script de Linux:** no se ejecutó. En particular, no se comprobó que la URL de las command-line tools ni la publicación de ComposeNativeWebview funcionen en ese equipo.
+
+### Cambios residuales en el entorno
+- GraalVM CE descargado por Nucleus en `~/.gradle/nucleus/graalvm`.
+- Se lanzó y cerró una vez el binario nativo. Puede haber creado su carpeta de datos de escritorio, perfil «Principal», sin sesión.
+
+---
+
 ## Historial de Versiones
 
 | Fecha | Versión | Cambios |
@@ -1393,3 +1435,4 @@ Release firmado (SHA-256 `a6369009…34a2`) en la TV Caixun (`adb install -r`) y
 | 2026-11-04 | — (sin publicación) | Inicio de sesión en TV por QR (§22): el teléfono con sesión envía su sesión cifrada (AES-256-GCM, clave solo en el QR) a la TV, que la guarda y se reinicia. Verificado entre el Redmi y la TV Caixun con el release firmado. Corregido el cierre al pasar a segundo plano en 6 rutas sin registrar |
 | 2026-11-04 | — (sin publicación) | Control remoto sincronizado: la cola marca la pista actual y el anuncio usa el nombre configurado. Pantalla encendida con interruptor (activo por defecto en TV). Perfil principal renombrable y eliminable; perfiles en móvil y escritorio. TV a pantalla completa (§23). Verificado entre la TV Caixun y el Redmi |
 | 2026-11-04 | — (sin publicación) | Dispositivo activo para el control remoto, fases 1–3 (§24): todo lo que se reproduce va al dispositivo conectado, mini reproductor remoto, botón «Dispositivo» y transferencia de la cola y la posición en ambos sentidos. Verificado entre el Redmi y la TV; el salto a la posición al recargar la misma pista se corrigió después y falta comprobarlo |
+| 2026-11-04 | — (sin publicación) | Versión de escritorio para Windows (§25): instalador GraalVM `spotube-6.0.0-win-x64.exe` sin firma Authenticode (SHA-256 `2F2E28E3…CB57`); el binario nativo arranca. Script `scripts/linux/build-deb.sh` y `docs/BUILD-DESKTOP.md` para el `.deb` en Linux, sin ejecutar |
