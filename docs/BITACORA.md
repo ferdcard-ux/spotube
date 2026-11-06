@@ -1442,6 +1442,50 @@ Compilar la versión de escritorio para Windows en este equipo y preparar la de 
 
 ---
 
+## 29. Bug — Spotube no abría en la TV física (UniFFI checksum mismatch)
+
+### Problema
+En la TV Caixun (armeabi-v7a), Spotube 6.0.0-beta.0 (versionCode 46) no abría. El 5 de noviembre se registraron 7 cierres: 12:01, 17:14, 17:15, 17:27, 18:27, 19:57 y 21:30. La última vez fue el `PlaybackService` arrancado por el sistema, que murió a los 13 s.
+
+### Diagnóstico (solo lectura)
+- `pm`/`dumpsys`: el paquete estaba instalado y habilitado, sin proceso en marcha.
+- `logcat -b crash` y `dumpsys dropbox data_app_crash`, todos con la misma traza:
+  `ExceptionInInitializerError` en `uniffi.compose_app.UniffiLib.<clinit>`
+  ← `DiscordRpcClient.<init>` ← `DiscordRpcService.ensureConnected`
+  Causa: `RuntimeException: UniFFI API checksum mismatch`.
+
+### Causa Raíz
+- **Desajuste de la librería:** la `libcompose_app.so` empaquetada (Rust, compilada el 4 de noviembre entre las 10:42 y las 10:44) no coincidía con los bindings UniFFI generados (11:37). La comprobación de integridad falla al cargar la librería. Las fuentes Rust y `Cargo.lock` no habían cambiado (3 de noviembre): era un artefacto de compilación desfasado.
+- **Discord en Android:** `DiscordRpcService` se crea al arrancar y llama a la librería cuando hay una pista en reproducción o en pausa. `discordRichPresence` vale `true` por defecto y su interruptor solo existe en los ajustes de escritorio, así que en Android/TV no se puede apagar. Al abrir, la app restaura la última pista en pausa y se cierra enseguida.
+- **Error no atrapado:** el fallo es un `Error`, que no atrapa el `catch (e: Exception)`.
+- **Otros usos en Android:** la misma librería la usan el escaneo de canciones locales (`AndroidLocalMediaDiscoveryService`) y `DownloadManager`. El desajuste también podía cerrarlos.
+- **Sin explicar:** el 4 de noviembre no hubo cierres con el mismo APK. No pudo determinarse en modo lectura.
+
+### Solución Aplicada
+- `DiscordRpcService.start()` no arranca si la plataforma no es de escritorio (`getPlatform().isDesktop()`).
+- Sus `catch (e: Exception)` pasan a `catch (e: Throwable)`. Un fallo de la librería nativa (`ExceptionInInitializerError`, `UnsatisfiedLinkError`) ya no cierra la app.
+- Se borraron `composeApp/target` (2 GB), `build/generated/uniffi` y `build/intermediates/rust`. El release regeneró la librería de las 4 ABI y los bindings juntos (6 de noviembre, 00:08).
+
+### Verificación
+- **Release:** compilado por el usuario (`BUILD SUCCESSFUL in 5m 41s`), firma del fork verificada.
+- **Instalación:** en la TV con `adb install -r`, como actualización, conservando la sesión.
+- **Arranque:** a los 30 s, `MainActivityTv` en primer plano, mismo PID y 0 `FATAL`. Log: `Discord RPC is desktop-only; not starting on Android`.
+- **Reproducción:** con «Pierdo La Cabeza» en pausa (la situación que antes cerraba la app), doble ↓ al play y OK: `PLAYING` a 18 638 ms tras 20 s. Con OK, `PAUSED` a 20 018 ms. El proceso siguió vivo y no hubo entradas nuevas en `dropbox`.
+
+### Alcance del cambio
+- **Discord Rich Presence** ya no funciona en Android ni en Android TV, donde no hay cliente de Discord. En escritorio no cambia.
+- **Release publicado:** el APK de la Release `tv-v6.0.0-beta.0` en GitHub es el anterior, con la librería desajustada. Hay que reemplazarlo.
+
+### No verificado / atajos de prueba
+- **Funciones con la librería Rust:** el escaneo de canciones locales y las descargas no se probaron en la TV. La librería nueva debería coincidir con sus bindings, pero no se comprobó.
+- **Instalador de Windows:** se compiló antes de la limpieza, con otra librería (escritorio, `jvm`). Sigue sin probarse dentro de la app.
+
+### Cambios residuales en el entorno
+- **TV:** release actualizado. Se reprodujeron unos 20 s de «Pierdo La Cabeza» y se dejó en pausa. Una pulsación de `KEYCODE_MEDIA_PLAY`/`PAUSE` no afectó a Spotube; pudo ir a otra app de la TV.
+- **Equipo:** se borraron y regeneraron las salidas de compilación de Rust.
+
+---
+
 ## Historial de Versiones
 
 | Fecha | Versión | Cambios |
@@ -1469,3 +1513,4 @@ Compilar la versión de escritorio para Windows en este equipo y preparar la de 
 | 2026-11-04 | — (sin publicación) | Versión de escritorio para Windows (§25): instalador GraalVM `spotube-6.0.0-win-x64.exe` sin firma Authenticode (SHA-256 `2F2E28E3…CB57`); el binario nativo arranca. Script `scripts/linux/build-deb.sh` y `docs/BUILD-DESKTOP.md` para el `.deb` en Linux, sin ejecutar |
 | 2026-11-05 | — (sin publicación) | Autenticación externa en Linux (§27): con el `.deb` de la compilación más reciente instalado, se completó el inicio de sesión en Spotify. `:composeApp:check` quedó bloqueado por la dependencia `composewebview` de iOS Simulator no resuelta |
 | 2026-11-06 | — (sin publicación) | Ventana agrupada con Plank (§28): `StartupWMClass` corregido a `Spotube` según el `WM_CLASS` real; `.deb` GraalVM compilado en 1 h 48 min, verificado por extracción y confirmado funcionando tras instalarlo |
+| 2026-11-06 | — (sin publicación) | Spotube no abría en la TV física (§29): librería Rust desajustada con sus bindings UniFFI, que se cargaba vía Discord Rich Presence. Discord solo en escritorio, `catch Throwable` y Rust recompilado desde cero. Verificado en la TV: abre y reproduce sin cierres |
