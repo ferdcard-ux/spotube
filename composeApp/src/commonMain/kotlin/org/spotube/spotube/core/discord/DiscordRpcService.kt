@@ -21,6 +21,8 @@ import org.spotube.spotube.core.audioplayer.AudioPlayerInterface
 import org.spotube.spotube.core.audioplayer.PlayerState
 import org.spotube.spotube.core.di.injectLogger
 import org.spotube.spotube.modules.settings.SettingsProvider
+import org.spotube.spotube.getPlatform
+import org.spotube.spotube.isDesktop
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -52,6 +54,12 @@ class DiscordRpcService(
     }
 
     private fun start() {
+        // Discord's local RPC socket only exists where the Discord desktop client runs. On Android
+        // (and TV) the setting has no UI and defaults to on, so never touch the native client there.
+        if (!getPlatform().isDesktop()) {
+            logger.d { "Discord RPC is desktop-only; not starting on ${getPlatform().type}" }
+            return
+        }
         logger.d { "Starting Discord RPC service" }
         observerJob?.cancel()
         observerJob = scope.launch {
@@ -116,7 +124,7 @@ class DiscordRpcService(
                 connectionFailed = true
                 lastConnectionAttempt = currentTimeMillis()
                 return
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 logger.w { "Discord RPC connection check failed, will retry after cooldown" }
                 rpcClient = null
                 connectionFailed = true
@@ -132,13 +140,15 @@ class DiscordRpcService(
         }
 
         lastConnectionAttempt = now
+        // Throwable, not Exception: a broken or missing native library fails with an Error
+        // (ExceptionInInitializerError, UnsatisfiedLinkError) that would otherwise crash the app.
         try {
             val newClient = DiscordRpcClient(clientId)
             newClient.connect()
             rpcClient = newClient
             connectionFailed = false
             logger.i { "Connected to Discord RPC" }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             connectionFailed = true
             logger.d { "Discord not available, will retry in ${connectionCooldownMs / 1000}s" }
         }
@@ -164,7 +174,7 @@ class DiscordRpcService(
                 coverUrl = coverUrl,
                 positionMs = positionMs,
                 durationMs = durationMs)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             rpcClient = null
             connectionFailed = true
             lastConnectionAttempt = currentTimeMillis()
@@ -176,7 +186,7 @@ class DiscordRpcService(
         val client = rpcClient ?: return
         try {
             client.clearPresence()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             rpcClient = null
             connectionFailed = true
             lastConnectionAttempt = currentTimeMillis()
@@ -189,7 +199,7 @@ class DiscordRpcService(
             rpcClient?.disconnect()
             rpcClient = null
             logger.d { "Disconnected from Discord RPC" }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             logger.e(e) { "Failed to disconnect from Discord RPC" }
         }
     }
