@@ -703,6 +703,10 @@
     <string name="webview_no_url">No URL to load</string>
     <string name="webview_go_back">Go back to browser history</string>
     <string name="webview_go_forward">Go forward to browser history</string>
+    <string name="webview_external_window_title">External Browser Window Open</string>
+    <string name="webview_external_window_desc">A browser window has been opened to complete authentication. Complete the process in that window.</string>
+    <string name="webview_external_window_show">Show Window</string>
+    <string name="webview_external_window_cancel">Cancel</string>
 
     <!-- Blacklist -->
     <string name="blacklist_filter_placeholder">Filter blacklist...</string>

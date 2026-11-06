@@ -90,16 +90,16 @@ fun PlatformWebViewScreen(webViewController: WebViewController) {
     }
 
     val state = remember {
+        val userAgent = UserAgents.random()
         WebViewState(
             webViewController.getWebContent(
                 additionalHttpHeaders = mapOf(
-                    "User-Agent" to UserAgents.random()
+                    "User-Agent" to userAgent
                 )
             )
-        )
-    }.apply {
-        this.content = webViewController.getWebContent()
-        platformWebviewConfig(this, webViewController.currentPluginId)
+        ).apply {
+            platformWebviewConfig(this, webViewController.currentPluginId)
+        }
     }
 
     val navigator = rememberWebViewNavigator()
@@ -219,13 +219,17 @@ fun PlatformWebViewScreen(webViewController: WebViewController) {
                     }
                 }
         )
-        WebView(
+        PlatformWebViewHost(
             state = state,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             navigator = navigator,
             webViewJsBridge = webViewBridge,
             onCreated = { webView ->
                 navigator.evaluateJavaScript(bridgeBootstrapScript)
-            })
+            },
+            onClose = {
+                webViewController.closeWebview()
+            }
+        )
     }
 }

@@ -40,6 +40,20 @@ import java.io.File
 object AppImageEnvironment {
     fun apply() {
         if (!System.getProperty("os.name").lowercase().contains("linux")) return
+
+        // WebKitGTK 2.42+ uses its dmabuf renderer by default on Linux. Against modern Mesa drivers
+        // or X11/Wayland compositors, that path fails to paint frames (leaving the webview solid black).
+        // Disabling it makes WebKitGTK fall back to shared memory (SHM) buffers across deb/rpm/aur/AppImage.
+        try {
+            val libc = NativeLibrary.getInstance("c")
+            val setenv = libc.getFunction("setenv")
+            if (System.getenv("WEBKIT_DISABLE_DMABUF_RENDERER").isNullOrBlank()) {
+                setenv.set("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
+            }
+        } catch (_: Throwable) {
+            // Best effort
+        }
+
         val resourcesDir = System.getProperty("compose.application.resources.dir") ?: return
         val usrDir = File(resourcesDir, "usr")
         if (!File(usrDir, "lib/libgtk-3.so.0").isFile) return
@@ -53,9 +67,6 @@ object AppImageEnvironment {
                 "x86_64-linux-gnu"
             }
             setenv.set("GIO_EXTRA_MODULES", File(usrDir, "lib/$triplet/gio/modules").absolutePath)
-            if (System.getenv("WEBKIT_DISABLE_DMABUF_RENDERER").isNullOrBlank()) {
-                setenv.set("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
-            }
             libc.getFunction("chdir").invokeInt(arrayOf<Any>(usrDir.absolutePath))
         } catch (_: Throwable) {
             // Falls back to the host's libraries, which only works where they are installed
