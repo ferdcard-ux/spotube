@@ -1411,6 +1411,37 @@ Compilar la versión de escritorio para Windows en este equipo y preparar la de 
 
 ---
 
+## 27. Autenticación externa en Linux
+
+### Verificación
+- Se instaló en este equipo el `.deb` de la compilación más reciente.
+- La autenticación en la ventana externa funciona: se completó el inicio de sesión en una cuenta de Spotify.
+
+### Compilación
+- `./gradlew :composeApp:check` no terminó correctamente. Gradle no pudo resolver `composewebview:webview-compose-iossimulatorarm64:unspecified`, requerido por `dev.nucleusframework:composewebview:0.1.0-SNAPSHOT` en `iosSimulatorArm64TestCompileKlibraries`.
+- Este fallo impidió completar la validación agregada; no invalida la prueba funcional del `.deb` instalado.
+
+---
+
+## 28. Ventana de Spotube agrupada con el lanzador de Plank
+
+### Problema
+- Al abrir Spotube desde el lanzador anclado en Plank, la ventana aparecía como un icono separado.
+- La ventana X11 reportó `WM_CLASS = "spotube", "Spotube"`, pero el `.desktop` del `.deb` tenía `StartupWMClass=org-spotube-spotube-MainKt`, que no coincidía.
+
+### Solución aplicada
+- La configuración Linux en `composeApp/build.gradle.kts` ahora declara `startupWMClass = "Spotube"`, para que el `.desktop` generado por Gradle coincida con la clase real de la ventana.
+- La plantilla `packaging/linux/org.spotube.spotube.desktop` también declara `StartupWMClass=Spotube`.
+
+### Verificación
+- `./gradlew :composeApp:tasks --all --no-configuration-cache`: `BUILD SUCCESSFUL`; la DSL de empaquetado quedó configurada correctamente.
+- `./gradlew :composeApp:packageGraalvmDeb --no-configuration-cache`: `BUILD SUCCESSFUL in 1h 48m 47s`.
+- Artefacto: `composeApp/build/compose/binaries/main/graalvm-deb/spotube-6.0.0-linux-amd64.deb` (59 066 704 bytes), SHA-256 `2cd51bf38f9125b7e791034e239957f590a7f3a90025daaeec59db09f736b231`.
+- El `.desktop` dentro del `.deb` generado contiene `StartupWMClass=Spotube`.
+- El usuario instaló el `.deb` en este equipo y confirmó que la ventana se agrupa correctamente con el lanzador anclado en Plank.
+
+---
+
 ## Historial de Versiones
 
 | Fecha | Versión | Cambios |
@@ -1436,3 +1467,5 @@ Compilar la versión de escritorio para Windows en este equipo y preparar la de 
 | 2026-11-04 | — (sin publicación) | Control remoto sincronizado: la cola marca la pista actual y el anuncio usa el nombre configurado. Pantalla encendida con interruptor (activo por defecto en TV). Perfil principal renombrable y eliminable; perfiles en móvil y escritorio. TV a pantalla completa (§23). Verificado entre la TV Caixun y el Redmi |
 | 2026-11-04 | — (sin publicación) | Dispositivo activo para el control remoto, fases 1–3 (§24): todo lo que se reproduce va al dispositivo conectado, mini reproductor remoto, botón «Dispositivo» y transferencia de la cola y la posición en ambos sentidos. Verificado entre el Redmi y la TV; el salto a la posición al recargar la misma pista se corrigió después y falta comprobarlo |
 | 2026-11-04 | — (sin publicación) | Versión de escritorio para Windows (§25): instalador GraalVM `spotube-6.0.0-win-x64.exe` sin firma Authenticode (SHA-256 `2F2E28E3…CB57`); el binario nativo arranca. Script `scripts/linux/build-deb.sh` y `docs/BUILD-DESKTOP.md` para el `.deb` en Linux, sin ejecutar |
+| 2026-11-05 | — (sin publicación) | Autenticación externa en Linux (§27): con el `.deb` de la compilación más reciente instalado, se completó el inicio de sesión en Spotify. `:composeApp:check` quedó bloqueado por la dependencia `composewebview` de iOS Simulator no resuelta |
+| 2026-11-06 | — (sin publicación) | Ventana agrupada con Plank (§28): `StartupWMClass` corregido a `Spotube` según el `WM_CLASS` real; `.deb` GraalVM compilado en 1 h 48 min, verificado por extracción y confirmado funcionando tras instalarlo |
