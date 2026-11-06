@@ -1486,6 +1486,37 @@ En la TV Caixun (armeabi-v7a), Spotube 6.0.0-beta.0 (versionCode 46) no abría. 
 
 ---
 
+## 30. Bug — Banner de Android TV provisional y recortado
+
+### Problema
+En la TV, el lanzador mostraba un icono distinto al de Spotube y recortado.
+
+### Causa Raíz
+- **Qué muestra el lanzador:** en Android TV, el lanzador usa el banner (`android:banner`) de `:AndroidTV`.
+- **El banner era provisional:** `ic_banner.png` (320×180 y 640×360), creado al añadir el soporte de TV, era un círculo verde con una nota musical cortada por el borde derecho. No tenía nada que ver con el icono oficial (los auriculares azules de neón) ni con el nombre de la app.
+
+### Solución Aplicada
+- **Banner nuevo:** generado desde `composeApp/icons/stable/icon.png` (solo los auriculares, sin el disco negro) y el logotipo «Spotube» en `cookie_regular.ttf`. Fondo negro, centrado, renderizado a 4× y reducido. Sustituye los dos tamaños en `AndroidTV/src/main/res/drawable-{xhdpi,xxxhdpi}/ic_banner.png`.
+- **Protección de firma** (`composeApp/build.gradle.kts`): solo se aplica a tareas de `:composeApp` o sin módulo. Antes `:AndroidTV:assembleRelease` fallaba pidiendo la firma, aunque esa librería no se firma.
+
+### Verificación
+- **Compilación:** `:AndroidTV:assembleRelease` OK. `:composeApp:assembleStableRelease -m` sin firma sigue fallando con el mensaje claro.
+- **APK:** el release compilado por el usuario lleva la firma del fork, y `aapt2 dump badging` declara `banner='res/8C.png'` (320×180), que es el banner nuevo.
+- **TV:** instalado con `adb install -r`.
+- **Emulador `MirraTV_TV`:** se instaló un debug, porque allí la app está firmada con la clave debug; lleva el mismo banner y no hubo que desinstalar.
+  - El lanzador FreeMyTV mostró primero el banner antiguo desde su caché.
+  - Tras `am force-stop io.freemytv` y volver a Inicio, la fila de apps muestra el banner nuevo completo (auriculares y «Spotube», sin recortes).
+
+### No verificado / atajos de prueba
+- **TV física:** no se vio el banner en su lanzador, porque había otra app reproduciendo vídeo en primer plano. Si muestra el antiguo, es la caché del lanzador: basta con reiniciar el lanzador o la TV.
+- **Nightly:** usa el mismo banner, con el nombre «Spotube».
+
+### Cambios residuales en el entorno
+- **TV:** release actualizado.
+- **Emulador:** debug actualizado y el lanzador FreeMyTV reiniciado con `force-stop`. El foco quedó sobre Spotube en la fila de apps.
+
+---
+
 ## Historial de Versiones
 
 | Fecha | Versión | Cambios |
@@ -1514,3 +1545,4 @@ En la TV Caixun (armeabi-v7a), Spotube 6.0.0-beta.0 (versionCode 46) no abría. 
 | 2026-11-05 | — (sin publicación) | Autenticación externa en Linux (§27): con el `.deb` de la compilación más reciente instalado, se completó el inicio de sesión en Spotify. `:composeApp:check` quedó bloqueado por la dependencia `composewebview` de iOS Simulator no resuelta |
 | 2026-11-06 | — (sin publicación) | Ventana agrupada con Plank (§28): `StartupWMClass` corregido a `Spotube` según el `WM_CLASS` real; `.deb` GraalVM compilado en 1 h 48 min, verificado por extracción y confirmado funcionando tras instalarlo |
 | 2026-11-06 | — (sin publicación) | Spotube no abría en la TV física (§29): librería Rust desajustada con sus bindings UniFFI, que se cargaba vía Discord Rich Presence. Discord solo en escritorio, `catch Throwable` y Rust recompilado desde cero. Verificado en la TV: abre y reproduce sin cierres |
+| 2026-11-06 | — (sin publicación) | Banner de Android TV (§30): el provisional (nota verde recortada) se sustituye por los auriculares oficiales y el logotipo «Spotube». La protección de firma solo se aplica a `:composeApp`. Verificado en el lanzador del emulador |

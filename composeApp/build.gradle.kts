@@ -429,6 +429,9 @@ android {
     // A release build must carry the fork's own identity: never fall back to the debug key or an
     // unsigned APK, since either would fail to update existing installations.
     val buildsAndroidRelease = gradle.startParameter.taskNames.any { task ->
+        // Only the app is signed: tasks of other modules (e.g. :AndroidTV:assembleRelease) are not.
+        val module = task.substringBeforeLast(':', "")
+        if (module.isNotEmpty() && module != ":composeApp" && module != "composeApp") return@any false
         task.substringAfterLast(':').let { name ->
             name.contains("Release") && (
                 name.startsWith("assemble") || name.startsWith("bundle") ||
