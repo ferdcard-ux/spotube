@@ -29,6 +29,9 @@ actual fun platformWebviewConfig(webView: WebViewState, pluginId: String?) {
     val baseDir = "${paths.getApplicationCacheDirPath()}/webview_data".toPath()
     val dataDir = if (pluginId != null) baseDir / pluginId else baseDir
     webView.webSettings.desktopWebSettings.dataDirectory = dataDir.toString()
+    webView.webSettings.desktopWebSettings.transparent = true
+    webView.webSettings.backgroundColor = androidx.compose.ui.graphics.Color(0xFF121212)
+    webView.webSettings.customUserAgentString = org.spotube.spotube.core.tools.user_agents.UserAgents.random()
 }
 
 actual suspend fun platformClearWebviewData(pluginId: String?) {
