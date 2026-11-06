@@ -3,10 +3,10 @@ Type=Application
 Name=Spotube
 GenericName=Music Player
 Comment=Open source, plugin powered music streaming client
-Exec=spotube %U
+Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 spotube %U
 Icon=org.spotube.spotube
 Terminal=false
 Categories=AudioVideo;Audio;Music;Player;
 Keywords=music;streaming;player;audio;lyrics;playlist;
 StartupNotify=true
-StartupWMClass=org-spotube-spotube-MainKt
+StartupWMClass=Spotube

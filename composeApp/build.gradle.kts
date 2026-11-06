@@ -538,6 +538,7 @@ nucleus.application {
 
         linux {
             iconFile.set(project.file("$desktopIconDir/icon.png"))
+            startupWMClass = "Spotube"
             modules("jdk.security.auth")
             debMaintainer = "Team Spotube <team.spotube@proton.me>"
             rpmLicenseType = "AGPL-3.0-or-later"

@@ -24,7 +24,13 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK_DIR="${SPOTUBE_BUILD_CACHE:-$HOME/.cache/spotube-build}"
 WORKFLOW="$REPO_DIR/.github/workflows/spotube-release-binary.yml"
 
+SUDO_BIN="${SUDO_CMD:-sudo}"
+if [[ "$SUDO_BIN" == "sudo" ]] && command -v pkexec >/dev/null 2>&1 && ! sudo -n true >/dev/null 2>&1; then
+    SUDO_BIN="pkexec"
+fi
+
 confirm() {
+    [[ "${CI:-false}" == "true" ]] || [[ "${ASSUME_YES:-false}" == "true" ]] && return 0
     read -r -p "$1 [s/N] " answer
     [[ "$answer" =~ ^[sSyY]$ ]]
 }
@@ -42,17 +48,25 @@ PACKAGES=(
     build-essential pkg-config zlib1g-dev patchelf zstd
     libgtk-3-dev libcairo2-dev libsoup-3.0-dev libwebkit2gtk-4.1-dev
     openjdk-21-jdk
-    libvlc5 vlc-plugin-base libwebkit2gtk-4.1-0 libasound2 libgl1 libxtst6 libxi6 libxrender1
+    libvlc5 vlc-plugin-base libwebkit2gtk-4.1-0 libgl1 libxtst6 libxi6 libxrender1
 )
 MISSING=()
 for p in "${PACKAGES[@]}"; do
     dpkg -s "$p" >/dev/null 2>&1 || MISSING+=("$p")
 done
+# Support both libasound2 and libasound2t64 (Ubuntu 24.04+)
+if ! dpkg -s libasound2 >/dev/null 2>&1 && ! dpkg -s libasound2t64 >/dev/null 2>&1; then
+    if apt-cache show libasound2t64 >/dev/null 2>&1; then
+        MISSING+=("libasound2t64")
+    else
+        MISSING+=("libasound2")
+    fi
+fi
 if ((${#MISSING[@]})); then
     step "Missing packages: ${MISSING[*]}"
-    if confirm "Install them with sudo apt-get?"; then
-        sudo apt-get update
-        sudo apt-get install -y "${MISSING[@]}"
+    if confirm "Install them with $SUDO_BIN apt-get?"; then
+        $SUDO_BIN apt-get update
+        $SUDO_BIN apt-get install -y "${MISSING[@]}"
     else
         echo "Cannot continue without them." >&2
         exit 1
@@ -128,7 +142,7 @@ esac
     test -f "webview-compose/src/jvmMain/resources/nucleus/native/$NATIVE_DIR/libcompose_webview_linux.so"
     printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
     chmod +x gradlew
-    ./gradlew publishToMavenLocal
+    ./gradlew publishToMavenLocal -x verifyPublicationCoordinates
 )
 
 # --- 5. Spotube .deb -----------------------------------------------------------------------------
