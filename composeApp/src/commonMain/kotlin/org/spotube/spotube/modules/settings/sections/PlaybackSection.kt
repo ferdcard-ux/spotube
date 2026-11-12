@@ -20,6 +20,8 @@ package org.spotube.spotube.modules.settings.sections
 
 import org.spotube.millennium.composables.MillenniumIcon
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.dp
 
 import org.spotube.spotube.core.ui.theming.AppTheme
 import androidx.compose.runtime.Composable
@@ -60,6 +62,40 @@ internal fun LazyListScope.playbackSection(
         current = settings.streamingMusicQuality)
 
     val cards: List<@Composable () -> Unit> = buildList {
+        add {
+            SwitchSettingCard(
+                title = stringResource(Res.string.settings_gapless_title),
+                subtitle = stringResource(Res.string.settings_gapless_subtitle),
+                checked = settings.gaplessEnabled,
+                onCheckedChange = { settingsViewModel.updateSettings { copy(gaplessEnabled = it) } })
+        }
+        add {
+            SettingCardItem(
+                title = stringResource(Res.string.settings_crossfade_title),
+                subtitle = stringResource(Res.string.settings_crossfade_seconds, settings.crossfadeSeconds),
+                trailingContent = {
+                    org.spotube.millennium.composables.MillenniumSlider(
+                        value = settings.crossfadeSeconds.toFloat(),
+                        onValueChange = settingsViewModel::setCrossfadeSeconds,
+                        label = stringResource(Res.string.settings_crossfade_title),
+                        valueRange = 0f..12f,
+                        modifier = androidx.compose.ui.Modifier.width(160.dp))
+                })
+        }
+        add {
+            SwitchSettingCard(
+                title = stringResource(Res.string.settings_automix_title),
+                subtitle = stringResource(Res.string.settings_automix_subtitle),
+                checked = settings.autoMixEnabled,
+                onCheckedChange = { settingsViewModel.updateSettings { copy(autoMixEnabled = it) } })
+        }
+        add {
+            SwitchSettingCard(
+                title = stringResource(Res.string.dj_title),
+                subtitle = stringResource(Res.string.dj_settings_subtitle),
+                checked = settings.djMode,
+                onCheckedChange = { settingsViewModel.updateSettings { copy(djMode = it) } })
+        }
         add {
             SelectionSettingCard(
                 title = stringResource(Res.string.settings_streaming_format_title),

@@ -52,6 +52,8 @@ import platform.AVFoundation.volume
 import platform.CoreMedia.CMTime
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.Foundation.NSURL
+import platform.Foundation.NSNotificationCenter
+import platform.AVFoundation.AVPlayerItemDidPlayToEndTimeNotification
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -64,6 +66,14 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private var disposed = false
+    private val endObserver = NSNotificationCenter.defaultCenter.addObserverForName(
+        AVPlayerItemDidPlayToEndTimeNotification, null, null
+    ) { notification ->
+        if (notification?.`object` == avPlayer.currentItem) {
+            _playerState.value = PlayerState.COMPLETED
+            _completion.tryEmit(Unit)
+        }
+    }
 
     private val currentPlaylist = mutableListOf<MediaItem>()
     private val urlIndexMap = mutableMapOf<String, Int>()
@@ -129,6 +139,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
     private fun syncTimeControlStatus() {
         val status = avPlayer.timeControlStatus
         if (status == lastTimeControlStatus) return
+        if (_playerState.value == PlayerState.COMPLETED && status == AVPlayerTimeControlStatusPaused) return
         lastTimeControlStatus = status
 
         val playerState = when (status) {
@@ -160,6 +171,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
 
     actual override suspend fun play() {
         avPlayer.play()
+        avPlayer.rate = _playbackSpeed.value
     }
 
     actual override suspend fun pause() {
@@ -219,6 +231,10 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
         }
 
         avPlayer.replaceCurrentItemWithPlayerItem(avItem)
+        _position.value = Duration.ZERO
+        _duration.value = item.duration
+        _playerState.value = PlayerState.PAUSED
+        lastTimeControlStatus = null
         _currentMediaItem.tryEmit(item)
 
         if (autoPlay) {
@@ -317,7 +333,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
 
     actual override suspend fun setPlaybackSpeed(speed: Float) {
         val clamped = speed.coerceIn(0.25f, 4f)
-        avPlayer.rate = clamped
+        if (avPlayer.timeControlStatus == AVPlayerTimeControlStatusPlaying) avPlayer.rate = clamped
         _playbackSpeed.tryEmit(clamped)
     }
 
@@ -325,6 +341,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
 
     actual override fun dispose() {
         disposed = true
+        NSNotificationCenter.defaultCenter.removeObserver(endObserver)
         avPlayer.pause()
         avPlayer.replaceCurrentItemWithPlayerItem(null)
         currentPlaylist.clear()

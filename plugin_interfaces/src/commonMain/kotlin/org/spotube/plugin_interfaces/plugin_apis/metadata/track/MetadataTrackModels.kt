@@ -35,5 +35,8 @@ data class MetadataTrack(
     val explicit: Boolean?,
     val popularity: Int?,
     val isrcCode: String?,
-    val externalUri: String?
+    val externalUri: String?,
+    val bpm: Float? = null,
+    val genre: String? = null,
+    val beatOffsetMs: Long? = null
 )

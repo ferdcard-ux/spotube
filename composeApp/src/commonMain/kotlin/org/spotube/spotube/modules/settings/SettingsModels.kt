@@ -62,6 +62,10 @@ data class UserSettings(
     val cacheFolder: String? = null,
     val cacheSizeLimitMB: Long = -1L,
     val enableEndlessPlayback: Boolean = true,
+    val gaplessEnabled: Boolean = true,
+    val crossfadeSeconds: Int = 5,
+    val autoMixEnabled: Boolean = false,
+    val djMode: Boolean = false,
     val playbackProxyServerPort: Int = 14769,
 
     // Remote Control (LAN)

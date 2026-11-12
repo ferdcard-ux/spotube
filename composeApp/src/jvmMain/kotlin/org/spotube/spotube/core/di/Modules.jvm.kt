@@ -36,7 +36,14 @@ import org.spotube.spotube.core.window.WindowStateRepository
 actual val platformModules = module {
     singleOf(::Paths)
     single { WindowStateRepository(get<Database>()) }
-    single<AudioPlayerInterface> { AudioPlayer(Unit) }
+    single<AudioPlayerInterface> {
+        val context = Unit
+        org.spotube.spotube.features.player.TransitionAudioPlayer(
+            AudioPlayer(context), { AudioPlayer(context) }, get())
+    }
+    single<org.spotube.spotube.features.dj.NativeSpeech> {
+        org.spotube.spotube.features.dj.NativeSpeech(Unit)
+    }
     single<LocalMediaDiscoveryService> { JvmLocalMediaDiscoveryService() }
     single<ShareService> { JvmShareService() }
     single { SystemTrayService(get(), get(), get()) }

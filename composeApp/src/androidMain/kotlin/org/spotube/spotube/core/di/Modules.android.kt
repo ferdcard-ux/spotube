@@ -30,7 +30,14 @@ import org.koin.dsl.module
 
 actual val platformModules = module {
     single { Paths() }
-    single<AudioPlayerInterface> { AudioPlayer(get<Context>()) }
+    single<AudioPlayerInterface> {
+        val context = get<Context>()
+        org.spotube.spotube.features.player.TransitionAudioPlayer(
+            AudioPlayer(context), { AudioPlayer(context) }, get())
+    }
+    single<org.spotube.spotube.features.dj.NativeSpeech> {
+        org.spotube.spotube.features.dj.NativeSpeech(get<Context>())
+    }
     single<LocalMediaDiscoveryService> { AndroidLocalMediaDiscoveryService(get()) }
     single<ShareService> { AndroidShareService(get()) }
     single {

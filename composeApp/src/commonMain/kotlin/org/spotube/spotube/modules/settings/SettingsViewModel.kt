@@ -38,6 +38,10 @@ class SettingsViewModel(
     /** Where downloads go when no override folder is set. */
     val defaultDownloadFolder: String = paths.getUserDownloadsDirPath()
 
+    fun setCrossfadeSeconds(value: Float) {
+        updateSettings { copy(crossfadeSeconds = kotlin.math.round(value).toInt().coerceIn(0, 12)) }
+    }
+
     fun updateSettings(transform: UserSettings.() -> UserSettings) {
         viewModelScope.launch {
             // Get current state, apply transform, and save

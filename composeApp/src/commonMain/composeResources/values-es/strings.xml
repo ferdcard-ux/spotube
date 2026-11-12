@@ -994,4 +994,24 @@
     <string name="playback_device_playing_on">Reproduciendo en %1$s</string>
     <string name="playback_device_transfer_note">Al cambiar se mueven la cola y la posición actual; el otro dispositivo se pausa.</string>
     <string name="playback_device_collapse">Minimizar reproductor</string>
+    <string name="settings_gapless_title">Reproducción sin pausas</string>
+    <string name="settings_gapless_subtitle">Precarga la siguiente canción antes de terminar la actual.</string>
+    <string name="settings_crossfade_title">Fundido cruzado</string>
+    <string name="settings_crossfade_seconds">%1$d segundos (0 desactiva el fundido)</string>
+    <string name="settings_automix_title">Automix</string>
+    <string name="settings_automix_subtitle">Mezcla durante 8 segundos las canciones compatibles de una playlist cuando hay datos de BPM.</string>
+    <string name="dj_title">DJ Livi</string>
+    <string name="dj_settings_subtitle">Presenta canciones recomendadas con la voz del dispositivo.</string>
+    <string name="dj_start">Activar DJ Livi</string>
+    <string name="dj_stop">Desactivar DJ Livi</string>
+    <string name="dj_speaking">DJ Livi está hablando</string>
+    <string name="dj_loading">Buscando tus próximas cuatro canciones…</string>
+    <string name="dj_history_empty">Escucha algunas canciones para que Livi conozca tus gustos.</string>
+    <string name="dj_no_recommendations">Tu proveedor de música no devolvió recomendaciones.</string>
+    <string name="dj_unavailable">La voz del sistema no está disponible. La música continuará.</string>
+    <string name="dj_intro_artist">Has escuchado a %1$s. Ahora viene %2$s, de %3$s.</string>
+    <string name="dj_intro_track">Ahora viene %1$s, de %2$s.</string>
+    <string name="dj_good_morning">Buenos días.</string>
+    <string name="dj_good_afternoon">Buenas tardes.</string>
+    <string name="dj_good_evening">Buenas noches.</string>
 </resources>

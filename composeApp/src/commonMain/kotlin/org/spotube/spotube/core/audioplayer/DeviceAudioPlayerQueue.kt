@@ -277,6 +277,7 @@ class DeviceAudioPlayerQueue(
 
     override suspend fun clear() {
         logger.i { "Clearing queue and collection history" }
+        (audioPlayer as? org.spotube.spotube.features.player.TransitionAudioPlayer)?.playlistContext = false
         entryByMediaUrl.value = emptyMap()
         currentCollectionEntryState.value = null
         collectionHistoryState.value = emptyList()
@@ -311,6 +312,8 @@ class DeviceAudioPlayerQueue(
         if (isFetchingRecommendations) return
 
         val settings = settingsProvider.settingsState.value ?: return
+        // El DJ administra sus propios bloques; endless no debe insertar otro lote en paralelo.
+        if (settings.djMode) return
         if (!settings.enableEndlessPlayback) return
 
         val queue = queueFlow.value
@@ -384,6 +387,8 @@ class DeviceAudioPlayerQueue(
 
         logger.i { "Restoring persisted state with ${state.entries.size} entries, currentIndex=${state.currentIndex}" }
         currentCollectionEntryState.value = state.currentCollectionEntry
+        (audioPlayer as? org.spotube.spotube.features.player.TransitionAudioPlayer)?.playlistContext =
+            state.currentCollectionEntry is QueueCollectionEntry.Playlist
         collectionHistoryState.value = state.collectionHistory.ifEmpty {
             state.currentCollectionEntry?.let(::listOf) ?: emptyList()
         }
@@ -436,6 +441,8 @@ class DeviceAudioPlayerQueue(
     }
 
     private fun updateCollectionContext(collectionEntry: QueueCollectionEntry?) {
+        (audioPlayer as? org.spotube.spotube.features.player.TransitionAudioPlayer)?.playlistContext =
+            collectionEntry is QueueCollectionEntry.Playlist
         if (collectionEntry != null) {
             logger.d { "Updating collection context: ${collectionEntry.id}" }
         } else {
@@ -465,7 +472,10 @@ class DeviceAudioPlayerQueue(
                     duration = track.durationMs.milliseconds,
                     coverURL = artworkUrl.orEmpty(),
                     url = resolvedUrl,
-                    protocol = protocol)
+                    protocol = protocol,
+                    bpm = track.bpm,
+                    genre = track.genre,
+                    beatOffsetMs = track.beatOffsetMs)
             }
 
             is QueueEntry.LocalTrack -> {

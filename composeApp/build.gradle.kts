@@ -386,6 +386,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = appBuildNumber
         versionName = appVersionName
+        testInstrumentationRunner = "org.spotube.spotube.features.player.PlaybackDeviceInstrumentation"
     }
     // stable = production channel, nightly = beta channel (own icon, name and installable side by side)
     flavorDimensions += "channel"

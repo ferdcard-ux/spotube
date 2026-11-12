@@ -299,6 +299,12 @@ val sharedModules = module {
     singleOf(::JamRoomClient)
     single { JamRoomService(get(), get(), get(), get()) }
     singleOf(::AudioPlayerQueueRepository) { bind<QueueStateRepository>() }
+    single { org.spotube.spotube.features.dj.DjHistory(get()) }
+    single { org.spotube.spotube.features.dj.DjService(get(), get(), get(), get(), get(), get(), get()) } withOptions {
+        createdAtStart()
+        onClose { it?.close() }
+    }
+    viewModel { org.spotube.spotube.features.dj.DjViewModel(get()) }
     single<AudioPlayerQueue> {
         DeviceAudioPlayerQueue(get(), get(), get(), get(), get())
     }

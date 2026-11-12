@@ -1,0 +1,22 @@
+﻿[
+  {
+    "case": "gapless",
+    "passed": true,
+    "durationMs": 7329
+  },
+  {
+    "case": "crossfade",
+    "passed": true,
+    "durationMs": 6205
+  },
+  {
+    "case": "automix",
+    "passed": true,
+    "durationMs": 4182
+  },
+  {
+    "case": "dj",
+    "passed": true,
+    "durationMs": 11000
+  }
+]

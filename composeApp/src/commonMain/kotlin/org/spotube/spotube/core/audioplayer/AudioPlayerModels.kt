@@ -31,7 +31,10 @@ data class MediaItem(
     val coverURL: String,
     val url: String,
     val protocol: StreamProtocol = StreamProtocol.PROGRESSIVE,
-    val coverBytes: ByteArray? = null)
+    val coverBytes: ByteArray? = null,
+    val bpm: Float? = null,
+    val genre: String? = null,
+    val beatOffsetMs: Long? = null)
 
 enum class LoopState {
     NONE, ONE, ALL;

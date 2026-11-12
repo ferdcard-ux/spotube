@@ -1044,4 +1044,24 @@
     <string name="playback_device_playing_on">Playing on %1$s</string>
     <string name="playback_device_transfer_note">Switching moves the queue and the current position; the other device pauses.</string>
     <string name="playback_device_collapse">Minimize player</string>
+    <string name="settings_gapless_title">Gapless playback</string>
+    <string name="settings_gapless_subtitle">Preload the next track before the current track ends.</string>
+    <string name="settings_crossfade_title">Crossfade</string>
+    <string name="settings_crossfade_seconds">%1$d seconds (0 disables crossfade)</string>
+    <string name="settings_automix_title">Automix</string>
+    <string name="settings_automix_subtitle">Mix compatible playlist tracks for 8 seconds when BPM data is available.</string>
+    <string name="dj_title">DJ Livi</string>
+    <string name="dj_settings_subtitle">Introduce recommended tracks using your device voice.</string>
+    <string name="dj_start">Start DJ Livi</string>
+    <string name="dj_stop">Stop DJ Livi</string>
+    <string name="dj_speaking">DJ Livi is speaking</string>
+    <string name="dj_loading">Finding your next four tracks...</string>
+    <string name="dj_history_empty">Play some songs first so Livi can learn your taste.</string>
+    <string name="dj_no_recommendations">Your music provider returned no recommendations.</string>
+    <string name="dj_unavailable">The system voice is unavailable. Music will continue.</string>
+    <string name="dj_intro_artist">You have been listening to %1$s. Here is %2$s by %3$s.</string>
+    <string name="dj_intro_track">Up next: %1$s by %2$s.</string>
+    <string name="dj_good_morning">Good morning.</string>
+    <string name="dj_good_afternoon">Good afternoon.</string>
+    <string name="dj_good_evening">Good evening.</string>
 </resources>
