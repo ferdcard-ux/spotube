@@ -464,14 +464,13 @@ fun AppExpandedPlayer(
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                MillenniumIconButton(
+                org.spotube.spotube.features.player.ChromeIconButton(
                     onClick = onCollapse,
                     style = MillenniumIconButtonStyle.Quiet
                 ) {
                     MillenniumIcon(
                         Iconsax.IconsaxArrowDown4,
-                        contentDescription = stringResource(Res.string.player_collapse_content_description)
-                    )
+                        contentDescription = stringResource(Res.string.player_collapse_content_description), tint = androidx.compose.ui.graphics.Color.White)
                 }
                 Text(
                     text = stringResource(Res.string.player_now_playing),
@@ -480,11 +479,11 @@ fun AppExpandedPlayer(
                     textAlign = TextAlign.Center,
                     maxLines = 1
                 )
-                MillenniumIconButton(
+                org.spotube.spotube.features.player.ChromeIconButton(
                     onClick = playerOptionsViewModel::showMoreOptionsSheet,
                     style = MillenniumIconButtonStyle.Quiet
                 ) {
-                    MillenniumIcon(Iconsax.Iconsax3DotsMore, contentDescription = stringResource(Res.string.player_options_content_description))
+                    MillenniumIcon(Iconsax.Iconsax3DotsMore, contentDescription = stringResource(Res.string.player_options_content_description), tint = androidx.compose.ui.graphics.Color.White)
                 }
             }
 
@@ -546,11 +545,11 @@ fun AppExpandedPlayer(
                     )
                 }
                 PlaybackDeviceButton(style = MillenniumIconButtonStyle.Secondary)
-                MillenniumIconButton(
+                org.spotube.spotube.features.player.ChromeIconButton(
                     onClick = onQueue,
                     style = MillenniumIconButtonStyle.Secondary
                 ) {
-                    MillenniumIcon(Iconsax.IconsaxMusicFilter, contentDescription = stringResource(Res.string.queue_title))
+                    MillenniumIcon(Iconsax.IconsaxMusicFilter, contentDescription = stringResource(Res.string.queue_title), tint = androidx.compose.ui.graphics.Color.White)
                 }
             }
 
@@ -594,7 +593,7 @@ fun AppExpandedPlayer(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    MillenniumIconButton(
+                    org.spotube.spotube.features.player.ChromeIconButton(
                         onClick = ::onShuffleToggle,
                         enabled = !isJamGuest,
                         style = MillenniumIconButtonStyle.Quiet
@@ -609,14 +608,14 @@ fun AppExpandedPlayer(
                             }
                         )
                     }
-                    MillenniumIconButton(
+                    org.spotube.spotube.features.player.ChromeIconButton(
                         onClick = ::onSkipPrevious,
                         enabled = !isJamGuest,
                         style = MillenniumIconButtonStyle.Quiet
                     ) {
-                        MillenniumIcon(Iconsax.IconsaxPrevious, contentDescription = stringResource(Res.string.player_previous_content_description))
+                        MillenniumIcon(Iconsax.IconsaxPrevious, contentDescription = stringResource(Res.string.player_previous_content_description), tint = androidx.compose.ui.graphics.Color.White)
                     }
-                    MillenniumIconButton(
+                    org.spotube.spotube.features.player.ChromeIconButton(
                         onClick = ::onPlayPause,
                         style = MillenniumIconButtonStyle.Primary
                     ) {
@@ -627,14 +626,14 @@ fun AppExpandedPlayer(
                             tint = LocalTextStyle.current.color
                         )
                     }
-                    MillenniumIconButton(
+                    org.spotube.spotube.features.player.ChromeIconButton(
                         onClick = ::onSkipNext,
                         enabled = !isJamGuest,
                         style = MillenniumIconButtonStyle.Quiet
                     ) {
-                        MillenniumIcon(Iconsax.IconsaxNext, contentDescription = stringResource(Res.string.player_next_content_description))
+                        MillenniumIcon(Iconsax.IconsaxNext, contentDescription = stringResource(Res.string.player_next_content_description), tint = androidx.compose.ui.graphics.Color.White)
                     }
-                    MillenniumIconButton(
+                    org.spotube.spotube.features.player.ChromeIconButton(
                         onClick = ::onLoopToggle,
                         enabled = !isJamGuest,
                         style = MillenniumIconButtonStyle.Quiet
@@ -714,7 +713,7 @@ private fun LyricsPreviewCard(
                 style = AppTheme.typography.labelMedium,
                 color = MillenniumTheme.colors.muted
             )
-            MillenniumIconButton(
+            org.spotube.spotube.features.player.ChromeIconButton(
                 onClick = onExpand,
                 style = MillenniumIconButtonStyle.Quiet
             ) {

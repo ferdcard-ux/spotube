@@ -23,6 +23,7 @@ import org.spotube.millennium.composables.MillenniumBottomNavigationBar
 import org.spotube.millennium.composables.MillenniumBottomNavigationItem
 import org.spotube.millennium.composables.MillenniumIcon
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.ui.Modifier
 import org.spotube.spotube.NavigationItem
 import org.jetbrains.compose.resources.stringResource
@@ -37,11 +38,13 @@ fun AppBottombar(
     navigator: Navigator,
     navigationState: NavigationState,
     modifier: Modifier = Modifier,
-    libraryBadge: @Composable () -> Unit = { DownloadBadgeIndicator() }
+    libraryBadge: @Composable () -> Unit = { DownloadBadgeIndicator() },
+    djControl: @Composable RowScope.() -> Unit = {}
 ) {
     MillenniumBottomNavigationBar(modifier = modifier) {
         bottombarTabs.filterIsInstance<NavigationItem.Tab<*>>()
             .forEach { tab ->
+                if (tab.route == Routes.Settings) djControl()
                 val selected = navigationState.topLevelRoute == tab.route
                 val title = stringResource(tab.title)
                 MillenniumBottomNavigationItem(

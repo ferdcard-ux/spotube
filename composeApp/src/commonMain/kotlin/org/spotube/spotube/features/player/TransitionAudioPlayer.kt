@@ -25,11 +25,16 @@ class TransitionAudioPlayer(
     private var announcementJob: Job? = null
     private var fadeDuration = Duration.ZERO
     private var incomingStart = Duration.ZERO
+    private var recoveringTempo: Float? = null
+    private var recoveryStart = Duration.ZERO
+    private var fadeCurve = CrossfadeCurve.EQUAL_POWER
+    private var fadeClockRatio = 1.0
     private var index = -1
     private var original = emptyList<MediaItem>()
     private var disposed = false
     private var wantsPlay = false
     var playlistContext = false
+    var playlistMixOverride: Boolean? = null
     // El DJ intercepta el inicio antes de reproducir; cancelar la operación cancela también la voz.
     var beforeTrack: (suspend (MediaItem) -> Unit)? = null
     var announcementsEnabled = false
@@ -86,11 +91,20 @@ class TransitionAudioPlayer(
         val deck = active.value
         val duration = deck.durationFlow.value
         val position = deck.positionFlow.value
+        recoveringTempo?.let { ratio ->
+            val bpm = currentMediaItemFlow.value?.bpm
+            if (bpm != null && bpm.isFinite() && bpm > 0f) {
+                val restored = restoredTempoRatio(ratio, (position - recoveryStart).inWholeMilliseconds, bpm)
+                val targetSpeed = playbackSpeedFlow.value * restored
+                if (kotlin.math.abs(deck.playbackSpeedFlow.value - targetSpeed) > 0.00001f) deck.setPlaybackSpeed(targetSpeed)
+                if (kotlin.math.abs(restored - 1f) < 0.0001f) recoveringTempo = null
+            } else recoveringTempo = null
+        }
         if (fading) {
             // El reloj del audio entrante se detiene con pause y no avanza durante buffering.
-            val elapsed = standby!!.positionFlow.value - incomingStart
+            val elapsed = (standby!!.positionFlow.value - incomingStart) * fadeClockRatio
             val progress = (elapsed / fadeDuration).toFloat().coerceIn(0f, 1f)
-            val (a, b) = equalPower(progress)
+            val (a, b) = crossfadeGains(progress, fadeCurve)
             deck.setVolume(volumeFlow.value * a)
             standby!!.setVolume(volumeFlow.value * b)
             if (progress >= 1f || deck.playerStateFlow.value == PlayerState.COMPLETED) promote()
@@ -106,22 +120,28 @@ class TransitionAudioPlayer(
         }
         val item = playlistFlow.value[next]
         val prefs = settings.userSettings.value
-        val plan = TransitionPlan.create(prefs.crossfadeSeconds, prefs.autoMixEnabled && !synchronizedPlayback.value,
+        val plan = TransitionPlan.create(prefs.crossfadeSeconds, (playlistMixOverride ?: prefs.autoMixEnabled) && !synchronizedPlayback.value,
             playlistContext, currentMediaItemFlow.value?.bpm, item.bpm)
         val seconds = if (announcementsEnabled || synchronizedPlayback.value || loopStateFlow.value == LoopState.ONE) 0 else plan.seconds
+        val currentBeatOffset = currentMediaItemFlow.value?.beatOffsetMs?.takeIf { it >= 0 && it < duration.inWholeMilliseconds }
+        val nextBeatOffset = item.beatOffsetMs?.takeIf { it >= 0 && it < item.duration.inWholeMilliseconds }
+        val musicalMillis = if (seconds > 0 && plan.beatMatching) mixDurationMillis(
+            currentMediaItemFlow.value?.bpm, currentBeatOffset,
+            nextBeatOffset, prefs.autoMixBars) else null
+        val length = minOf((musicalMillis ?: seconds * 1_000L).milliseconds, duration / 2)
         if (duration <= Duration.ZERO || !duration.isFinite()) {
             if (deck.playerStateFlow.value == PlayerState.COMPLETED) start(next, true)
             return
         }
         val remaining = duration - position
-        val preloadMs = maxOf(5_000L, seconds * 1_000L + 5_000L)
+        val preloadMs = maxOf(5_000L, length.inWholeMilliseconds + 5_000L)
         if ((prefs.gaplessEnabled || seconds > 0) && remaining <= preloadMs.milliseconds && prepared != item) {
             val buffer = standby ?: createDeck().also { standby = it }
             buffer.setVolume(0f)
             buffer.prepareForTransition(item)
             buffer.setPlaybackSpeed(playbackSpeedFlow.value * plan.tempoRatio)
-            if (plan.beatMatching && item.beatOffsetMs != null) {
-                buffer.seekTo(item.beatOffsetMs.coerceAtLeast(0).milliseconds)
+            if (plan.beatMatching && nextBeatOffset != null) {
+                buffer.seekTo(nextBeatOffset.milliseconds)
             }
             prepared = item
         }
@@ -134,13 +154,11 @@ class TransitionAudioPlayer(
             } else start(next, true)
             return
         }
-        val length = minOf((seconds * 1_000L).milliseconds, duration / 2)
         // La rejilla solo es válida si el proveedor informa el primer beat; BPM solo no da su fase.
         val current = currentMediaItemFlow.value
-        val beatAlignedStart = if (plan.beatMatching && current?.beatOffsetMs != null &&
-            item.beatOffsetMs != null && current.bpm != null) {
+        val beatAlignedStart = if (musicalMillis != null && currentBeatOffset != null && current?.bpm != null) {
             val beatMs = 60_000.0 / current.bpm
-            val offset = current.beatOffsetMs.toDouble()
+            val offset = currentBeatOffset.toDouble()
             (offset + kotlin.math.ceil(((duration - length).inWholeMilliseconds - offset) / beatMs) * beatMs)
                 .toLong().milliseconds
         } else duration - length
@@ -148,9 +166,13 @@ class TransitionAudioPlayer(
         if (seconds > 0 && prepared == item && ready && position >= beatAlignedStart &&
             deck.playerStateFlow.value == PlayerState.PLAYING) {
             // Algunos motores aceptan el tempo solo cuando el medio ya está preparado.
-            standby!!.setPlaybackSpeed(playbackSpeedFlow.value * plan.tempoRatio)
+            standby!!.setPlaybackSpeed(deck.playbackSpeedFlow.value * plan.tempoRatio)
+            recoveringTempo = null
             fadeDuration = remaining.coerceAtLeast(1.milliseconds)
+            fadeCurve = prefs.crossfadeCurve
             incomingStart = standby!!.positionFlow.value
+            // Ambos relojes expresan posición en su archivo; se convierten al reloj de salida.
+            fadeClockRatio = deck.playbackSpeedFlow.value.toDouble() / standby!!.playbackSpeedFlow.value
             standby!!.play()
             fading = true
         }
@@ -159,13 +181,17 @@ class TransitionAudioPlayer(
     private suspend fun promote() {
         val next = nextIndex() ?: return
         val old = active.value
+        val incomingRatio = standby!!.playbackSpeedFlow.value / playbackSpeedFlow.value
         active.value = standby!!
         standby = old
         old.stop()
         index = next
         currentMediaItemFlow.value = playlistFlow.value[index]
         active.value.setVolume(volumeFlow.value)
-        active.value.setPlaybackSpeed(playbackSpeedFlow.value)
+        // Se recupera el tempo durante 16 compases de la pista entrante, sin salto al promocionarla.
+        recoveryStart = active.value.positionFlow.value
+        recoveringTempo = incomingRatio.takeIf { kotlin.math.abs(it - 1f) > 0.0001f }
+        if (recoveringTempo == null) active.value.setPlaybackSpeed(playbackSpeedFlow.value)
         prepared = null
         fading = false
     }
@@ -181,11 +207,13 @@ class TransitionAudioPlayer(
         announcementJob?.cancelAndJoin()
         cancelTransition()
         active.value.stop()
+        recoveringTempo = null
         index = target
         val item = playlistFlow.value.getOrNull(index)
         currentMediaItemFlow.value = item
         wantsPlay = autoPlay && item != null
         active.value.load(listOfNotNull(item), false, 0)
+        active.value.setPlaybackSpeed(playbackSpeedFlow.value)
         if (wantsPlay && item != null) {
             val announce = beforeTrack.takeUnless { synchronizedPlayback.value }
             if (announce == null) active.value.play()
@@ -218,12 +246,16 @@ class TransitionAudioPlayer(
     }
     override suspend fun stop() = mutex.withLock {
         wantsPlay = false
+        recoveringTempo = null
         announcementJob?.cancelAndJoin()
         cancelTransition()
         active.value.stop()
+        active.value.setPlaybackSpeed(playbackSpeedFlow.value)
     }
     override suspend fun seekTo(position: Duration) = mutex.withLock {
         cancelTransition()
+        recoveringTempo = null
+        active.value.setPlaybackSpeed(playbackSpeedFlow.value)
         active.value.seekTo(position)
     }
     suspend fun finishAnnouncement() = mutex.withLock {
@@ -239,6 +271,8 @@ class TransitionAudioPlayer(
         cancelTransition()
         synchronizedPlayback.value = enabled
         if (enabled) {
+            recoveringTempo = null
+            active.value.setPlaybackSpeed(playbackSpeedFlow.value)
             announcementJob?.cancelAndJoin()
             if (wantsPlay) active.value.play()
         }
@@ -302,8 +336,12 @@ class TransitionAudioPlayer(
         if (!fading) active.value.setVolume(volumeFlow.value)
     }
     override suspend fun setPlaybackSpeed(speed: Float) = mutex.withLock {
+        recoveringTempo = null
+        val incomingRatio = standby?.playbackSpeedFlow?.value?.div(playbackSpeedFlow.value) ?: 1f
         playbackSpeedFlow.value = speed.coerceIn(0.25f, 4f)
         active.value.setPlaybackSpeed(playbackSpeedFlow.value)
+        if (fading || prepared != null) standby?.setPlaybackSpeed(playbackSpeedFlow.value * incomingRatio)
+        if (fading) fadeClockRatio = active.value.playbackSpeedFlow.value.toDouble() / standby!!.playbackSpeedFlow.value
     }
     override fun isDisposed() = disposed
     override fun dispose() {

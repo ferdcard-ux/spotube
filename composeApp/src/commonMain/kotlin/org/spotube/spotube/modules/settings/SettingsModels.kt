@@ -61,8 +61,12 @@ data class UserSettings(
     val enableEndlessPlayback: Boolean = true,
     val gaplessEnabled: Boolean = true,
     val crossfadeSeconds: Int = 5,
+    val crossfadeCurve: org.spotube.spotube.features.player.CrossfadeCurve = org.spotube.spotube.features.player.CrossfadeCurve.EQUAL_POWER,
     val autoMixEnabled: Boolean = false,
+    val autoMixBars: Int = 4,
+    val playlistMixOverrides: Map<String, Boolean> = emptyMap(),
     val djMode: Boolean = false,
+    val djName: String = "Livi",
     val playbackProxyServerPort: Int = 14769,
 
     // Remote Control (LAN)

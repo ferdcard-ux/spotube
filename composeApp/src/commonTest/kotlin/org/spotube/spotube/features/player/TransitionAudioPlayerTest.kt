@@ -68,6 +68,82 @@ class TransitionAudioPlayerTest {
         assertEquals(TransitionPlan(5), TransitionPlan.create(5, true, true, 110f, 100f))
     }
 
+    @Test fun curvesKeepTheirDirectionAndExpectedPower() {
+        for (curve in CrossfadeCurve.entries) {
+            val start = crossfadeGains(0f, curve)
+            val end = crossfadeGains(1f, curve)
+            assertEquals(1f, start.first, 0.0001f)
+            assertEquals(0f, start.second, 0.0001f)
+            assertEquals(0f, end.first, 0.0001f)
+            assertEquals(1f, end.second, 0.0001f)
+        }
+        assertEquals(0.5f to 0.5f, crossfadeGains(0.5f, CrossfadeCurve.LINEAR))
+        val smooth = crossfadeGains(0.5f, CrossfadeCurve.SMOOTH)
+        assertEquals(0.5f, smooth.first, 0.0001f)
+        assertEquals(0.5f, smooth.second, 0.0001f)
+        assertEquals(1f to 0f, crossfadeGains(Float.NaN, CrossfadeCurve.LINEAR))
+    }
+
+    @Test fun existingPreferencesKeepTheirDefaults() {
+        val settings = kotlinx.serialization.json.Json.decodeFromString<UserSettings>(
+            """{"crossfadeSeconds":6,"autoMixEnabled":true,"djMode":false}""")
+        assertEquals(6, settings.crossfadeSeconds)
+        assertTrue(settings.autoMixEnabled)
+        assertEquals(CrossfadeCurve.EQUAL_POWER, settings.crossfadeCurve)
+        assertEquals(4, settings.autoMixBars)
+        assertEquals("Livi", settings.djName)
+    }
+
+    @Test fun musicalTimingRequiresBothGridsAndUsesFourBeatsPerBar() {
+        assertEquals(4000L, mixDurationMillis(120f, 0, 0, 2))
+        assertEquals(8000L, mixDurationMillis(120f, 0, 0, 4))
+        assertEquals(16000L, mixDurationMillis(120f, 0, 0, 8))
+        assertNull(mixDurationMillis(120f, null, 0, 4))
+        assertNull(mixDurationMillis(120f, 0, -1, 4))
+        assertNull(mixDurationMillis(Float.NaN, 0, 0, 4))
+    }
+
+    @Test fun automixRestoresTempoGraduallyAfterPromotionAndHonorsManualSpeed() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val a = Deck(); val b = Deck()
+        val settings = object : UserSettingsSource {
+            override val userSettings = MutableStateFlow(UserSettings(autoMixEnabled = false, autoMixBars = 2))
+        }
+        val player = TransitionAudioPlayer(a, { b }, settings)
+        try {
+            player.playlistContext = true
+            player.playlistMixOverride = true
+            player.load(listOf(track("one").copy(bpm = 105f, beatOffsetMs = 0),
+                track("two").copy(bpm = 100f, beatOffsetMs = 0, duration = 120.seconds)), true, 0)
+            a.positionFlow.value = 26.seconds
+            runCurrent()
+            assertEquals(PlayerState.PLAYING, b.playerStateFlow.value)
+            assertEquals(1.05f, b.playbackSpeedFlow.value, 0.0001f)
+            b.positionFlow.value = 2.1.seconds
+            advanceTimeBy(25); runCurrent()
+            assertEquals(0.707107f, a.volumeFlow.value, 0.0001f)
+            assertEquals(0.707107f, b.volumeFlow.value, 0.0001f)
+            b.positionFlow.value = 4.seconds
+            a.playerStateFlow.value = PlayerState.COMPLETED
+            advanceTimeBy(25); runCurrent()
+            assertSame(b, player.activeDeck.value)
+            assertEquals(1.05f, b.playbackSpeedFlow.value, 0.0001f)
+            b.positionFlow.value = 23.2.seconds
+            advanceTimeBy(25); runCurrent()
+            assertEquals(1.025f, b.playbackSpeedFlow.value, 0.0001f)
+            player.pause()
+            advanceTimeBy(10_000); runCurrent()
+            assertEquals(1.025f, b.playbackSpeedFlow.value, 0.0001f)
+            player.play()
+            b.positionFlow.value = 42.4.seconds
+            advanceTimeBy(25); runCurrent()
+            assertEquals(1f, b.playbackSpeedFlow.value, 0.0001f)
+            player.setPlaybackSpeed(0.9f)
+            advanceTimeBy(25); runCurrent()
+            assertEquals(0.9f, b.playbackSpeedFlow.value, 0.0001f)
+        } finally { player.dispose(); Dispatchers.resetMain() }
+    }
+
     @Test fun preloadsAtFiveSecondsThenPromotesWithoutReload() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val a = Deck(); val b = Deck()

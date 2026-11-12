@@ -17,6 +17,8 @@
 
 package org.spotube.spotube.modules.shell
 
+import org.spotube.spotube.features.dj.DjNavigationControl
+
 import org.spotube.spotube.modules.devices.RemoteControlScreen
 import org.spotube.spotube.modules.devices.RemoteFloatingPlayer
 import org.spotube.spotube.modules.devices.PlaybackDeviceViewModel
@@ -336,7 +338,7 @@ internal fun CompactPlayerOverlay(
         )
     },
     bottomBar: @Composable (Modifier) -> Unit = {
-        AppBottombar(navigator = navigator, navigationState = navigationState, modifier = it)
+        AppBottombar(navigator = navigator, navigationState = navigationState, modifier = it, djControl = { DjNavigationControl() })
     },
     content: @Composable () -> Unit
 ) {

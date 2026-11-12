@@ -102,7 +102,8 @@ fun CollectionView(
     onAddToJam: (List<MetadataTrack>) -> Unit = {},
     trackOptionsState: (MetadataTrack) -> TrackOptionsState = { TrackOptionsState() },
     footerContent: (@Composable () -> Unit)? = null,
-    trailingContent: @Composable () -> Unit = {}) {
+    trailingContent: @Composable () -> Unit = {},
+    mixControl: (@Composable () -> Unit)? = null) {
     val listState = rememberLazyListState()
     val isCollapsed by remember {
         derivedStateOf {
@@ -162,6 +163,7 @@ fun CollectionView(
                                 ownerImageURL = ownerImageURL,
                                 onOwnerClick = onOwnerClick,
                                 onPlay = onPlay,
+                                mixControl = mixControl,
                                 onShufflePlay = onShufflePlay,
                                 onAddToQueue = onAddToQueue,
                                 isPlaying = isPlaying,
@@ -187,6 +189,7 @@ fun CollectionView(
                             ownerImageURL = ownerImageURL,
                             onOwnerClick = onOwnerClick,
                             onPlay = onPlay,
+                            mixControl = mixControl,
                             onShufflePlay = onShufflePlay,
                             onAddToQueue = onAddToQueue,
                             isPlaying = isPlaying,

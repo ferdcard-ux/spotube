@@ -63,6 +63,8 @@ import org.spotube.spotube.resources.iconsax.IconsaxHeart
 import org.spotube.spotube.resources.iconsax.IconsaxHeart2
 import org.spotube.spotube.resources.iconsax.IconsaxPauseCircle
 import org.spotube.spotube.resources.iconsax.IconsaxPlayCircle2
+import org.spotube.spotube.resources.iconsax.IconsaxPause
+import org.spotube.spotube.resources.iconsax.IconsaxPlay
 import org.spotube.spotube.resources.iconsax.IconsaxShuffle
 import org.spotube.spotube.resources.iconsax.User
 import org.jetbrains.compose.resources.DrawableResource
@@ -96,7 +98,8 @@ fun CollectionDetails(
     onFollowClick: () -> Unit = { },
     showFollowButton: Boolean = true,
     onEdit: (() -> Unit)? = null,
-    sharedElementKey: String? = null) {
+    sharedElementKey: String? = null,
+    mixControl: (@Composable () -> Unit)? = null) {
     Box(modifier = modifier.fillMaxWidth()) {
         val isCompact = currentWindowWidthBreakpoint() isBelow WindowBreakpoints.Medium
 
@@ -122,30 +125,25 @@ fun CollectionDetails(
             } else {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val modifier = if (isCompact) {
-                        Modifier.weight(1f)
-                    } else {
-                        Modifier
-                    }
-
-                    MillenniumButton(
-                        modifier = modifier.tvKeepFocusWhileBusy(isPlayLoading),
+                    mixControl?.invoke()
+                    org.spotube.spotube.features.player.ChromeIconButton(
+                        modifier = Modifier.tvKeepFocusWhileBusy(isPlayLoading),
                         onClick = onPlay,
-                        loading = isPlayLoading) {
+                        loading = isPlayLoading,
+                        style = MillenniumIconButtonStyle.Primary) {
                         MillenniumIcon(
-                            imageVector = if (isPlaying) Iconsax.IconsaxPauseCircle else Iconsax.IconsaxPlayCircle2,
-                            contentDescription = if (isPlaying) stringResource(Res.string.player_pause_content_description) else stringResource(Res.string.player_play_content_description))
-                        TextWithShimmer(text = if (isPlaying) stringResource(Res.string.player_pause_content_description) else stringResource(Res.string.player_play_content_description))
+                            imageVector = if (isPlaying) Iconsax.IconsaxPause else Iconsax.IconsaxPlay,
+                            contentDescription = if (isPlaying) stringResource(Res.string.player_pause_content_description) else stringResource(Res.string.player_play_content_description), tint = androidx.compose.ui.graphics.Color.White)
                     }
-                    MillenniumButton(
-                        modifier = modifier.tvKeepFocusWhileBusy(isShuffleLoading),
+                    org.spotube.spotube.features.player.ChromeIconButton(
+                        modifier = Modifier.tvKeepFocusWhileBusy(isShuffleLoading),
                         onClick = onShufflePlay,
                         loading = isShuffleLoading,
-                        style = MillenniumButtonStyle.Secondary
+                        style = MillenniumIconButtonStyle.Quiet
                     ) {
-                        MillenniumIcon(imageVector = Iconsax.IconsaxShuffle, contentDescription = stringResource(Res.string.collection_details_shuffle_play))
-                        TextWithShimmer(text = stringResource(Res.string.collection_details_shuffle))
+                        MillenniumIcon(imageVector = Iconsax.IconsaxShuffle, contentDescription = stringResource(Res.string.collection_details_shuffle_play), tint = androidx.compose.ui.graphics.Color.White)
                     }
                 }
             }

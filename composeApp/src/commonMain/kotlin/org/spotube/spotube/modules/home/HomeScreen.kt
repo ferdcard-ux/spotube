@@ -209,7 +209,6 @@ fun HomeScreen(viewModel: HomeScreenViewModel) {
                     }
                 }
             })
-        org.spotube.spotube.features.dj.DjCard()
         if (isSmallScreen) {
             ConnectStatusBanner(
                 onOpenRemote = { navigationCommands.navigateTo(Routes.RemoteControl) },

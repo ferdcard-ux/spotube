@@ -85,6 +85,13 @@ class DeviceAudioPlayerQueue(
 
     init {
         logger.d { "Initializing DeviceAudioPlayerQueue" }
+        if (audioPlayer is org.spotube.spotube.features.player.TransitionAudioPlayer) scope.launch(Dispatchers.Main) {
+            combine(settingsProvider.settingsState, currentCollectionEntryState) { settings, collection ->
+                settings?.playlistMixOverrides?.get(collection?.id)
+            }.collect { override ->
+                audioPlayer.playlistMixOverride = override
+            }
+        }
         scope.launch {
             logger.d { "Starting restoration of persisted queue state" }
             restorePersistedState()

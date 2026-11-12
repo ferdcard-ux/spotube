@@ -118,6 +118,7 @@ fun PlaylistScreen(
     } else null
 
     CollectionView(
+        mixControl = { org.spotube.spotube.features.player.PlaylistMixButton(playlistId) },
         isPlayLoading = playbackUiState.isPlayLoading,
         isShuffleLoading = playbackUiState.isShuffleLoading,
         isAddToQueueLoading = playbackUiState.isAddToQueueLoading,

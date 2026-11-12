@@ -335,7 +335,7 @@ fun AppLargePlayer(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        MillenniumIconButton(
+                        org.spotube.spotube.features.player.ChromeIconButton(
                             onClick = ::onShuffleToggle,
                             enabled = !isJamGuest,
                             style = if (playerUiState.isShuffling) MillenniumIconButtonStyle.Secondary else MillenniumIconButtonStyle.Quiet
@@ -350,14 +350,14 @@ fun AppLargePlayer(
                                 }
                             )
                         }
-                        MillenniumIconButton(
+                        org.spotube.spotube.features.player.ChromeIconButton(
                             onClick = ::onSkipPrevious,
                             enabled = !isJamGuest,
                             style = MillenniumIconButtonStyle.Quiet
                         ) {
-                            MillenniumIcon(Iconsax.IconsaxPrevious, contentDescription = stringResource(Res.string.player_previous_content_description))
+                            MillenniumIcon(Iconsax.IconsaxPrevious, contentDescription = stringResource(Res.string.player_previous_content_description), tint = androidx.compose.ui.graphics.Color.White)
                         }
-                        MillenniumIconButton(
+                        org.spotube.spotube.features.player.ChromeIconButton(
                             onClick = ::onPlayPause,
                             style = MillenniumIconButtonStyle.Primary
                         ) {
@@ -367,14 +367,14 @@ fun AppLargePlayer(
                                 tint = LocalTextStyle.current.color
                             )
                         }
-                        MillenniumIconButton(
+                        org.spotube.spotube.features.player.ChromeIconButton(
                             onClick = ::onSkipNext,
                             enabled = !isJamGuest,
                             style = MillenniumIconButtonStyle.Quiet
                         ) {
-                            MillenniumIcon(Iconsax.IconsaxNext, contentDescription = stringResource(Res.string.player_next_content_description))
+                            MillenniumIcon(Iconsax.IconsaxNext, contentDescription = stringResource(Res.string.player_next_content_description), tint = androidx.compose.ui.graphics.Color.White)
                         }
-                        MillenniumIconButton(
+                        org.spotube.spotube.features.player.ChromeIconButton(
                             onClick = ::onLoopToggle,
                             enabled = !isJamGuest,
                             style = if (playerUiState.loopState == LoopState.NONE) MillenniumIconButtonStyle.Quiet else MillenniumIconButtonStyle.Secondary
@@ -402,12 +402,12 @@ fun AppLargePlayer(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         PlaybackDeviceButton()
-                        MillenniumIconButton(
+                        org.spotube.spotube.features.player.ChromeIconButton(
                             style = MillenniumIconButtonStyle.Quiet, onClick = onQueue
                         ) {
-                            MillenniumIcon(Iconsax.IconsaxMusicFilter, contentDescription = stringResource(Res.string.queue_title))
+                            MillenniumIcon(Iconsax.IconsaxMusicFilter, contentDescription = stringResource(Res.string.queue_title), tint = androidx.compose.ui.graphics.Color.White)
                         }
-                        MillenniumIconButton(
+                        org.spotube.spotube.features.player.ChromeIconButton(
                             style = MillenniumIconButtonStyle.Quiet,
                             onClick = {
                                 val track = (currentEntry as? QueueEntry.StreamingTrack)?.track
@@ -421,18 +421,17 @@ fun AppLargePlayer(
                                 contentDescription = stringResource(Res.string.player_download)
                             )
                         }
-                        MillenniumIconButton(
+                        org.spotube.spotube.features.player.ChromeIconButton(
                             style = MillenniumIconButtonStyle.Quiet, onClick = onAlternativeSource
                         ) {
                             MillenniumIcon(
                                 Iconsax.SwapHorizontal2,
-                                contentDescription = stringResource(Res.string.player_alternative_source_content_description)
-                            )
+                                contentDescription = stringResource(Res.string.player_alternative_source_content_description), tint = androidx.compose.ui.graphics.Color.White)
                         }
-                        MillenniumIconButton(
+                        org.spotube.spotube.features.player.ChromeIconButton(
                             style = MillenniumIconButtonStyle.Quiet, onClick = onLyrics
                         ) {
-                            MillenniumIcon(Iconsax.IconsaxMusic, contentDescription = stringResource(Res.string.player_lyrics))
+                            MillenniumIcon(Iconsax.IconsaxMusic, contentDescription = stringResource(Res.string.player_lyrics), tint = androidx.compose.ui.graphics.Color.White)
                         }
                         val goToAlbumLabel = stringResource(Res.string.player_go_to_album)
                         val sleepTimerLabel = stringResource(Res.string.player_sleep_timer)
@@ -444,7 +443,7 @@ fun AppLargePlayer(
                             },
                             side = AnchorSide.Top,
                             anchor = {
-                                MillenniumIconButton(
+                                org.spotube.spotube.features.player.ChromeIconButton(
                                     style = MillenniumIconButtonStyle.Quiet,
                                     onClick = {
                                         playerOptionsViewModel.showMoreOptionsMenu()
@@ -453,8 +452,7 @@ fun AppLargePlayer(
                                 ) {
                                     MillenniumIcon(
                                         Iconsax.Iconsax3DotsMore,
-                                        contentDescription = stringResource(Res.string.player_more_options_content_description)
-                                    )
+                                        contentDescription = stringResource(Res.string.player_more_options_content_description), tint = androidx.compose.ui.graphics.Color.White)
                                 }
                             }) {
                             MillenniumDropdownMenuItem(
@@ -483,7 +481,7 @@ fun AppLargePlayer(
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        MillenniumIconButton(
+                        org.spotube.spotube.features.player.ChromeIconButton(
                             style = MillenniumIconButtonStyle.Quiet,
                             onClick = {
                                 scope.launch {
@@ -503,8 +501,7 @@ fun AppLargePlayer(
                             }
                             MillenniumIcon(
                                 imageVector = volumeIcon,
-                                contentDescription = stringResource(if (playerUiState.volume <= 0f) Res.string.player_unmute_content_description else Res.string.player_mute_content_description)
-                            )
+                                contentDescription = stringResource(if (playerUiState.volume <= 0f) Res.string.player_unmute_content_description else Res.string.player_mute_content_description), tint = androidx.compose.ui.graphics.Color.White)
                         }
                         MillenniumSlider(
                             value = playerUiState.volume,

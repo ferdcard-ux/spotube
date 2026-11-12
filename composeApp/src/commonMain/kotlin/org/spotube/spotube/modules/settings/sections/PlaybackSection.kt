@@ -83,6 +83,18 @@ internal fun LazyListScope.playbackSection(
                 })
         }
         add {
+            SelectionSettingCard(
+                title = stringResource(Res.string.settings_crossfade_curve_title),
+                selectedOption = settings.crossfadeCurve,
+                options = org.spotube.spotube.features.player.CrossfadeCurve.entries.toList(),
+                optionLabel = { curve -> stringResource(when (curve) {
+                    org.spotube.spotube.features.player.CrossfadeCurve.EQUAL_POWER -> Res.string.settings_crossfade_curve_power
+                    org.spotube.spotube.features.player.CrossfadeCurve.LINEAR -> Res.string.settings_crossfade_curve_linear
+                    org.spotube.spotube.features.player.CrossfadeCurve.SMOOTH -> Res.string.settings_crossfade_curve_smooth
+                }) },
+                onOptionSelected = { curve -> settingsViewModel.updateSettings { copy(crossfadeCurve = curve) } })
+        }
+        add {
             SwitchSettingCard(
                 title = stringResource(Res.string.settings_automix_title),
                 subtitle = stringResource(Res.string.settings_automix_subtitle),
@@ -90,12 +102,29 @@ internal fun LazyListScope.playbackSection(
                 onCheckedChange = { settingsViewModel.updateSettings { copy(autoMixEnabled = it) } })
         }
         add {
+            SelectionSettingCard(
+                title = stringResource(Res.string.settings_automix_bars_title),
+                subtitle = stringResource(Res.string.settings_automix_bars_subtitle),
+                selectedOption = settings.autoMixBars,
+                options = listOf(2, 4, 8),
+                optionLabel = { bars -> stringResource(Res.string.settings_automix_bars_value, bars) },
+                onOptionSelected = { bars -> settingsViewModel.updateSettings { copy(autoMixBars = bars) } })
+        }
+        add {
             SwitchSettingCard(
-                title = stringResource(Res.string.dj_title),
+                title = stringResource(Res.string.dj_title, settings.djName),
                 subtitle = stringResource(Res.string.dj_settings_subtitle),
                 checked = settings.djMode,
                 onCheckedChange = { settingsViewModel.updateSettings { copy(djMode = it) } })
         }
+        add {
+            TextInputSettingCard(
+                title = stringResource(Res.string.dj_name_title),
+                subtitle = stringResource(Res.string.dj_name_subtitle),
+                value = settings.djName,
+                onValueSaved = settingsViewModel::setDjName)
+        }
+        add { org.spotube.spotube.features.dj.DjAiConfiguration() }
         add {
             SelectionSettingCard(
                 title = stringResource(Res.string.settings_streaming_format_title),

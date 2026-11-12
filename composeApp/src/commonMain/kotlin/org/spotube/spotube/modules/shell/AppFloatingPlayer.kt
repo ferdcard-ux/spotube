@@ -211,15 +211,14 @@ internal fun FloatingPlayerContent(
                     PlaybackDeviceButton()
                     heartButton()
                     Spacer(modifier = Modifier.size(8.dp))
-                    MillenniumIconButton(
+                    org.spotube.spotube.features.player.ChromeIconButton(
                         onClick = onPlayPause,
                         enabled = playerUiState.queue.isNotEmpty(),
                         style = MillenniumIconButtonStyle.Secondary
                     ) {
                         MillenniumIcon(
                             if (playerUiState.isPlaying) Iconsax.IconsaxPause else Iconsax.IconsaxPlay,
-                            contentDescription = stringResource(if (playerUiState.isPlaying) Res.string.player_pause_content_description else Res.string.player_play_content_description)
-                        )
+                            contentDescription = stringResource(if (playerUiState.isPlaying) Res.string.player_pause_content_description else Res.string.player_play_content_description), tint = androidx.compose.ui.graphics.Color.White)
                     }
                 }
             }

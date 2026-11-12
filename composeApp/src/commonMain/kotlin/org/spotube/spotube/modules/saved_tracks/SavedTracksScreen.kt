@@ -66,6 +66,7 @@ fun SavedTracksScreen(
     val isLoading = state is SavedTracksScreenState.Loading && (dataState == null || dataState.tracks.isEmpty())
 
     CollectionView(
+        mixControl = { org.spotube.spotube.features.player.PlaylistMixButton("saved_tracks") },
         isPlayLoading = playbackUiState.isPlayLoading,
         isShuffleLoading = playbackUiState.isShuffleLoading,
         isAddToQueueLoading = playbackUiState.isAddToQueueLoading,

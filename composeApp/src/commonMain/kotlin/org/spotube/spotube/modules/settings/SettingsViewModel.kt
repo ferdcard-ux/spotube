@@ -42,6 +42,10 @@ class SettingsViewModel(
         updateSettings { copy(crossfadeSeconds = kotlin.math.round(value).toInt().coerceIn(0, 12)) }
     }
 
+    fun setDjName(value: String) {
+        updateSettings { copy(djName = org.spotube.spotube.features.dj.normalizeDjName(value)) }
+    }
+
     fun updateSettings(transform: UserSettings.() -> UserSettings) {
         viewModelScope.launch {
             // Get current state, apply transform, and save

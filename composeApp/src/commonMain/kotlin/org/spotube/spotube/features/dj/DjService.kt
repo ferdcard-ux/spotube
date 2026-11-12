@@ -39,7 +39,12 @@ class DjHistory(private val database: Database) {
     }
 }
 
+/** El nombre es presentación local; nunca altera las recomendaciones ni los identificadores. */
+fun normalizeDjName(value: String): String = value.filterNot { it.isISOControl() }.trim().take(24).ifBlank { "Livi" }
+
 data class DjUiState(
+    val name: String = "Livi",
+    val panelVisible: Boolean = false,
     val enabled: Boolean = false,
     val available: Boolean = true,
     val speaking: Boolean = false,
@@ -56,6 +61,7 @@ class DjService(
     private val history: DjHistory,
     private val blacklist: BlacklistRepository,
     private val speech: NativeSpeech,
+    private val aiPlanner: DjAiPlanner? = null,
 ) {
     private val player = audioPlayer as TransitionAudioPlayer
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -67,6 +73,11 @@ class DjService(
 
     init {
         player.beforeTrack = { item -> introduce(item) }
+        scope.launch {
+            settings.userSettings.map { normalizeDjName(it.djName) }.distinctUntilChanged().collect { name ->
+                state.update { it.copy(name = name) }
+            }
+        }
         scope.launch {
             combine(settings.userSettings.map { it.djMode }, player.synchronizedPlaybackFlow) { enabled, synced ->
                 (enabled && !synced) to !synced
@@ -164,11 +175,12 @@ class DjService(
             val blockedArtists = blacklist.blacklistedArtists.first().map { it.id }.toSet()
             val favorites = recent.flatMap { it.artists }.groupingBy { it }.eachCount()
             val genre = recent.mapNotNull { it.genre }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
-            val tracks = candidates.distinctBy { it.id }.filter { track ->
+            val eligible = candidates.distinctBy { it.id }.filter { track ->
                 track.id !in blockedTracks && track.artists.none { it.id in blockedArtists }
             }.sortedByDescending { track ->
                 track.artists.sumOf { favorites[it.name] ?: 0 } + if (genre != null && genre == track.genre) 2 else 0
-            }.take(4)
+            }
+            val tracks = aiPlanner?.order(eligible) ?: eligible.take(4)
             if (tracks.isEmpty()) {
                 val message = getString(Res.string.dj_no_recommendations)
                 state.update { it.copy(message = message) }
@@ -190,6 +202,9 @@ class DjService(
     fun toggle() {
         scope.launch { settings.updateSettings(settings.userSettings.value.copy(djMode = !settings.userSettings.value.djMode)) }
     }
+
+    fun showPanel() { state.update { it.copy(panelVisible = true) } }
+    fun hidePanel() { state.update { it.copy(panelVisible = false) } }
 
     fun close() {
         scope.cancel()
