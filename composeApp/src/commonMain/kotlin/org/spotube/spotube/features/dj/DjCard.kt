@@ -25,7 +25,7 @@ class DjViewModel(private val service: DjService) : ViewModel() {
 fun DjCard(viewModel: DjViewModel = koinViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        MillenniumButton(onClick = viewModel::toggle) {
+        MillenniumButton(onClick = viewModel::toggle, enabled = state.available) {
             Text(stringResource(if (state.enabled) Res.string.dj_stop else Res.string.dj_start))
         }
         if (state.loading) Text(stringResource(Res.string.dj_loading))

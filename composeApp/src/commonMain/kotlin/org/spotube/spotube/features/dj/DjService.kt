@@ -8,7 +8,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.jetbrains.compose.resources.getString
+import org.spotube.spotube.core.i18n.getString
 import org.spotube.spotube.core.audioplayer.*
 import org.spotube.spotube.core.db.Database
 import org.spotube.spotube.features.player.TransitionAudioPlayer
@@ -41,6 +41,7 @@ class DjHistory(private val database: Database) {
 
 data class DjUiState(
     val enabled: Boolean = false,
+    val available: Boolean = true,
     val speaking: Boolean = false,
     val loading: Boolean = false,
     val message: String? = null,
@@ -67,15 +68,18 @@ class DjService(
     init {
         player.beforeTrack = { item -> introduce(item) }
         scope.launch {
-            settings.userSettings.map { it.djMode }.distinctUntilChanged().collect { enabled ->
-                state.update { it.copy(enabled = enabled) }
+            combine(settings.userSettings.map { it.djMode }, player.synchronizedPlaybackFlow) { enabled, synced ->
+                (enabled && !synced) to !synced
+            }.distinctUntilChanged().collect { (enabled, available) ->
+                state.update { it.copy(enabled = enabled, available = available) }
                 player.announcementsEnabled = enabled
                 blocksJob?.cancel()
                 if (enabled) blocksJob = scope.launch { loadBlock() }
                 else {
                     player.finishAnnouncement()
                     speech.stop()
-                    state.update { it.copy(speaking = false, loading = false, script = null, message = null) }
+                    val message = if (available) null else getString(Res.string.dj_jam_paused)
+                    state.update { it.copy(speaking = false, loading = false, script = null, message = message) }
                 }
             }
         }
@@ -171,6 +175,7 @@ class DjService(
                 return
             }
             val entries = tracks.map { QueueEntry.StreamingTrack(it, "") }
+            if (!state.value.enabled || player.synchronizedPlaybackFlow.value) return
             blockIntroPending = true
             // El siguiente bloque se añade antes del final para que no haya espera de red entre bloques.
             if (append) queue.addAllToQueue(entries) else queue.load(entries)
@@ -183,7 +188,7 @@ class DjService(
     }
 
     fun toggle() {
-        scope.launch { settings.updateSettings(settings.userSettings.value.copy(djMode = !state.value.enabled)) }
+        scope.launch { settings.updateSettings(settings.userSettings.value.copy(djMode = !settings.userSettings.value.djMode)) }
     }
 
     fun close() {

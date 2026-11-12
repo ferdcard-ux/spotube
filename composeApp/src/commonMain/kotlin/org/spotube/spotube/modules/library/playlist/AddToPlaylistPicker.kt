@@ -18,6 +18,7 @@
 package org.spotube.spotube.modules.library.playlist
 
 
+import org.spotube.spotube.core.ui.misc.itemsWithUniqueKeys
 import org.spotube.spotube.core.ui.component.AdaptiveDialogBottomSheet
 import org.spotube.spotube.core.ui.TvTextFieldGate
 import org.spotube.millennium.composables.MillenniumIcon
@@ -198,7 +199,7 @@ private fun PlaylistPickerContent(
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            items(playlists, key = { it.id }) { playlist ->
+            itemsWithUniqueKeys(playlists, id = { it.id }) { playlist ->
                 PlaylistPickerRow(
                     playlist = playlist,
                     onClick = { onPlaylistSelected(playlist.id) })

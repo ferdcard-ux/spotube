@@ -119,6 +119,33 @@ class TransitionAudioPlayerTest {
         } finally { player.dispose(); Dispatchers.resetMain() }
     }
 
+    @Test fun synchronizedPlaybackSuspendsMixingAndAnnouncementsWithoutChangingSettings() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val a = Deck(); val b = Deck()
+        val settings = object : UserSettingsSource {
+            override val userSettings = MutableStateFlow(UserSettings(crossfadeSeconds = 6, autoMixEnabled = true))
+        }
+        val player = TransitionAudioPlayer(a, { b }, settings)
+        var announcements = 0
+        player.beforeTrack = { announcements++ }
+        try {
+            player.setSynchronizedPlayback(true)
+            player.load(listOf(track("one"), track("two")), true, 0)
+            runCurrent()
+            assertEquals(0, announcements)
+            a.positionFlow.value = 25.seconds
+            advanceTimeBy(25); runCurrent()
+            assertEquals(PlayerState.READY, b.playerStateFlow.value)
+            assertEquals(PlayerState.PLAYING, a.playerStateFlow.value)
+            assertEquals(6, settings.userSettings.value.crossfadeSeconds)
+            assertTrue(settings.userSettings.value.autoMixEnabled)
+            player.setSynchronizedPlayback(false)
+            player.skipToNext()
+            runCurrent()
+            assertEquals(1, announcements)
+        } finally { player.dispose(); Dispatchers.resetMain() }
+    }
+
     @Test fun removingPreloadedSongInvalidatesBuffer() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val a = Deck(); val b = Deck()

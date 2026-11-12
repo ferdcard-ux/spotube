@@ -26,18 +26,24 @@ import org.spotube.spotube.core.webview.WebViewController
 import org.spotube.spotube.modules.library.local_tracks.media.IosLocalMediaDiscoveryService
 import org.spotube.spotube.modules.library.local_tracks.media.LocalMediaDiscoveryService
 import org.koin.core.module.dsl.singleOf
+import org.koin.core.module.dsl.withOptions
+import org.koin.core.module.dsl.createdAtStart
 import org.koin.dsl.module
 
 actual val platformModules = module {
     singleOf(::Paths)
     singleOf(::WebViewController)
     single<AudioPlayerInterface> {
-        val context = Unit
+        val context = org.spotube.spotube.core.audioplayer.TransitionDeckContext
         org.spotube.spotube.features.player.TransitionAudioPlayer(
             AudioPlayer(context), { AudioPlayer(context) }, get())
     }
     single<org.spotube.spotube.features.dj.NativeSpeech> {
         org.spotube.spotube.features.dj.NativeSpeech(Unit)
+    }
+    single { org.spotube.spotube.core.audioplayer.IosTransitionMediaSession(get()) } withOptions {
+        createdAtStart()
+        onClose { it?.close() }
     }
     single<LocalMediaDiscoveryService> { IosLocalMediaDiscoveryService() }
     single<ShareService> { IosShareService() }

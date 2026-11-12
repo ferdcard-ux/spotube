@@ -29,6 +29,8 @@ interface AudioPlayerInterface {
     suspend fun seekTo(position: Duration)
     suspend fun loop(state: LoopState)
     suspend fun shuffle(enabled: Boolean)
+    /** Permite que una sala sincronizada suspenda las mezclas locales durante la sesión. */
+    suspend fun setSynchronizedPlayback(enabled: Boolean) { }
 
     // Playlist management
     suspend fun load(playlist: List<MediaItem>, autoPlay: Boolean, startPosition: Int)

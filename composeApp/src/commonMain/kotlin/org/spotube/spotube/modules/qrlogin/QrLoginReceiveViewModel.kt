@@ -44,7 +44,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
 import kotlinx.serialization.json.Json
-import org.jetbrains.compose.resources.getString
+import org.spotube.spotube.core.i18n.getString
 import org.spotube.spotube.core.db.Database
 import org.spotube.spotube.core.di.injectLogger
 import org.spotube.spotube.core.profile.restartApplication

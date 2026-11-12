@@ -55,6 +55,7 @@ import org.spotube.spotube.modules.support.SupportDialog
 import org.spotube.spotube.modules.support.SupportReminderIntervalMillis
 import org.spotube.spotube.modules.update.AppUpdateDialog
 import org.spotube.spotube.modules.update.AppUpdateService
+import org.spotube.spotube.modules.plugin.components.PluginPermissionDialog
 import org.spotube.spotube.modules.update.PluginUpdateDialog
 import org.spotube.spotube.modules.update.PluginUpdateService
 import org.spotube.spotube.modules.webview.WebViewScreen
@@ -162,6 +163,7 @@ fun App(
     val pluginUpdateService: PluginUpdateService = koinInject()
     val availableAppUpdate by appUpdateService.availableUpdate.collectAsStateWithLifecycle()
     val availablePluginUpdate by pluginUpdateService.availableUpdate.collectAsStateWithLifecycle()
+    val pluginPermissionReview by pluginUpdateService.permissionReview.collectAsStateWithLifecycle()
 
     val welcomeRepository: WelcomeRepository = koinInject()
     val showOnboarding by welcomeRepository.shouldShowOnboarding.collectAsStateWithLifecycle()
@@ -272,6 +274,19 @@ fun App(
                         onDismiss = pluginUpdateService::dismissUpdate,
                         onIgnore = pluginUpdateService::ignoreUpdate,
                         onUpdate = pluginUpdateService::installUpdate)
+                }
+                pluginPermissionReview?.let { review ->
+                    PluginPermissionDialog(
+                        pluginInfo = review.pending.entry,
+                        title = review.pending.title,
+                        message = review.errorMessage ?: review.pending.message,
+                        confirmLabel = review.pending.confirmLabel?.takeIf { review.canConfirm },
+                        existingPlugin = review.pending.existingEntry,
+                        permissions = review.pending.permissions,
+                        logoPath = review.logoPath,
+                        onConfirm = if (review.canConfirm) pluginUpdateService::confirmPermissionReview else null,
+                        isConfirming = review.isInstalling,
+                        onDismiss = pluginUpdateService::dismissPermissionReview)
                 }
                 SupportDialog(
                     visible = showSupportDialog,

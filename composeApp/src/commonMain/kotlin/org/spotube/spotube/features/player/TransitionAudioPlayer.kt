@@ -33,6 +33,8 @@ class TransitionAudioPlayer(
     // El DJ intercepta el inicio antes de reproducir; cancelar la operación cancela también la voz.
     var beforeTrack: (suspend (MediaItem) -> Unit)? = null
     var announcementsEnabled = false
+    private val synchronizedPlayback = MutableStateFlow(false)
+    val synchronizedPlaybackFlow: StateFlow<Boolean> = synchronizedPlayback.asStateFlow()
 
     override val playlistFlow = MutableStateFlow<List<MediaItem>>(emptyList())
     override val currentMediaItemFlow = MutableStateFlow<MediaItem?>(null)
@@ -104,9 +106,9 @@ class TransitionAudioPlayer(
         }
         val item = playlistFlow.value[next]
         val prefs = settings.userSettings.value
-        val plan = TransitionPlan.create(prefs.crossfadeSeconds, prefs.autoMixEnabled,
+        val plan = TransitionPlan.create(prefs.crossfadeSeconds, prefs.autoMixEnabled && !synchronizedPlayback.value,
             playlistContext, currentMediaItemFlow.value?.bpm, item.bpm)
-        val seconds = if (announcementsEnabled || loopStateFlow.value == LoopState.ONE) 0 else plan.seconds
+        val seconds = if (announcementsEnabled || synchronizedPlayback.value || loopStateFlow.value == LoopState.ONE) 0 else plan.seconds
         if (duration <= Duration.ZERO || !duration.isFinite()) {
             if (deck.playerStateFlow.value == PlayerState.COMPLETED) start(next, true)
             return
@@ -185,7 +187,7 @@ class TransitionAudioPlayer(
         wantsPlay = autoPlay && item != null
         active.value.load(listOfNotNull(item), false, 0)
         if (wantsPlay && item != null) {
-            val announce = beforeTrack
+            val announce = beforeTrack.takeUnless { synchronizedPlayback.value }
             if (announce == null) active.value.play()
             else announcementJob = scope.launch {
                 try { announce(item) }
@@ -231,6 +233,15 @@ class TransitionAudioPlayer(
     override suspend fun loop(state: LoopState) = mutex.withLock {
         cancelTransition()
         loopStateFlow.value = state
+    }
+    override suspend fun setSynchronizedPlayback(enabled: Boolean) = mutex.withLock {
+        if (synchronizedPlayback.value == enabled) return@withLock
+        cancelTransition()
+        synchronizedPlayback.value = enabled
+        if (enabled) {
+            announcementJob?.cancelAndJoin()
+            if (wantsPlay) active.value.play()
+        }
     }
     override suspend fun shuffle(enabled: Boolean) = mutex.withLock {
         cancelTransition()
