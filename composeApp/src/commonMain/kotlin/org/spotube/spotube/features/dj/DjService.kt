@@ -80,6 +80,13 @@ class DjService(
         player.afterQueue = {
             if (state.value.enabled && lifecycle.ending(queue.currentCollectionEntryFlow.value)) {
                 speak(lifecycle.outro ?: DjDialogueSkill.fallbackOutro(state.value.name, generation.toInt()))
+                // Un set terminado no deja al usuario en el último fotograma: tras el cierre,
+                // prepara otro bloque. La comprobación evita reemplazar una acción manual.
+                if (state.value.enabled && lifecycle.owns(queue.currentCollectionEntryFlow.value)) {
+                    // afterQueue se ejecuta como anuncio del reproductor. Se difiere un turno
+                    // para no cancelar esa misma corrutina cuando la nueva cola se carga.
+                    scope.launch { yield(); startNewSet() }
+                }
             }
         }
         scope.launch {
