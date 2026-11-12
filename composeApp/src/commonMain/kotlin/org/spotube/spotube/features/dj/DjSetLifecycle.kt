@@ -9,7 +9,11 @@ class DjSetLifecycle {
     private var id: String? = null
     private var introduced = false
     private var ended = false
-    fun begin(setId: String) { id = setId; introduced = false; ended = false }
+    var intro: String? = null
+        private set
+    var outro: String? = null
+        private set
+    fun begin(setId: String, intro: String, outro: String) { id = setId; introduced = false; ended = false; this.intro = intro; this.outro = outro }
     fun owns(collection: QueueCollectionEntry?) = collection is QueueCollectionEntry.DjSet && collection.id == id
     fun introduction(collection: QueueCollectionEntry?): Boolean {
         if (!owns(collection) || introduced || ended) return false
@@ -21,5 +25,5 @@ class DjSetLifecycle {
         ended = true
         return true
     }
-    fun clear() { id = null; introduced = false; ended = false }
+    fun clear() { id = null; introduced = false; ended = false; intro = null; outro = null }
 }

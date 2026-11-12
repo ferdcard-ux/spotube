@@ -16,7 +16,12 @@ import org.koin.core.context.GlobalContext
 import org.spotube.spotube.core.audioplayer.*
 import org.spotube.spotube.core.db.Database
 import org.spotube.spotube.features.dj.DjService
+import org.spotube.spotube.features.dj.DjSpeechOptions
 import org.spotube.spotube.features.dj.NativeSpeech
+import org.spotube.spotube.modules.settings.DjVoiceAccent
+import org.spotube.spotube.modules.settings.DjVoiceCharacter
+import org.spotube.spotube.modules.settings.DjVoiceExpressiveness
+import org.spotube.spotube.modules.settings.DjVoiceGender
 import org.spotube.spotube.modules.settings.SettingsRepository
 import java.io.File
 import java.nio.ByteBuffer
@@ -244,7 +249,9 @@ class PlaybackDeviceInstrumentation : Instrumentation() {
     private suspend fun dj() {
         configure(6, dj = true)
         // Voz nativa disponible; habilitar DJ no debe presentar las pistas de una playlist.
-        withTimeout(15_000) { koin.get<NativeSpeech>().speak("Prueba de voz del DJ.", "es") }
+        withTimeout(15_000) { koin.get<NativeSpeech>().speak("Prueba de voz del DJ.", "es", DjSpeechOptions(
+            DjVoiceCharacter.NATURAL, DjVoiceGender.AUTO, DjVoiceAccent.SYSTEM,
+            DjVoiceExpressiveness.NATURAL, 1f)) }
         val service = koin.get<DjService>()
         val queue = koin.get<AudioPlayerQueue>()
         queue.load(listOf(firstFile, secondFile).map { file ->

@@ -33,6 +33,12 @@ enum class Theme {
     LIGHT, DARK, SYSTEM
 }
 
+/** Preferencias portables: cada plataforma elige la mejor voz disponible. */
+@Serializable enum class DjVoiceCharacter { NATURAL, WARM, ENERGETIC, CALM }
+@Serializable enum class DjVoiceGender { AUTO, FEMALE, MALE, NEUTRAL }
+@Serializable enum class DjVoiceAccent { SYSTEM, COLOMBIA, MEXICO, SPAIN, ARGENTINA }
+@Serializable enum class DjVoiceExpressiveness { NATURAL, SOFT, EXPRESSIVE }
+
 @Serializable
 data class UserSettings(
     // Language and Region
@@ -67,6 +73,11 @@ data class UserSettings(
     val playlistMixOverrides: Map<String, Boolean> = emptyMap(),
     val djMode: Boolean = false,
     val djName: String = "Livi",
+    val djVoiceCharacter: DjVoiceCharacter = DjVoiceCharacter.NATURAL,
+    val djVoiceGender: DjVoiceGender = DjVoiceGender.AUTO,
+    val djVoiceAccent: DjVoiceAccent = DjVoiceAccent.SYSTEM,
+    val djVoiceExpressiveness: DjVoiceExpressiveness = DjVoiceExpressiveness.NATURAL,
+    val djVoiceSpeed: Float = 1f,
     // Solo preferencias locales; las claves se guardan en el almacen seguro nativo.
     val djAiEnabled: Boolean = false,
     val djAiProvider: String = "OPENROUTER",

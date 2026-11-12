@@ -4,8 +4,6 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.spotube.spotube.core.i18n.getString
@@ -75,19 +73,13 @@ class DjService(
         player.beforeTrack = {
             if (state.value.enabled && lifecycle.introduction(queue.currentCollectionEntryFlow.value)) {
                 player.announcementsEnabled = false
-                val hour = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).hour
-                val greeting = getString(when (hour) {
-                    in 5..11 -> Res.string.dj_good_morning
-                    in 12..18 -> Res.string.dj_good_afternoon
-                    else -> Res.string.dj_good_evening
-                })
                 // La plantilla solo afirma el nombre configurado y el tamaño real de la cola.
-                speak(getString(Res.string.dj_set_intro, greeting, state.value.name, player.playlistFlow.value.size))
+                speak(lifecycle.intro ?: DjDialogueSkill.fallbackIntro(state.value.name, player.playlistFlow.value.size, generation.toInt()))
             }
         }
         player.afterQueue = {
             if (state.value.enabled && lifecycle.ending(queue.currentCollectionEntryFlow.value)) {
-                speak(getString(Res.string.dj_set_outro, state.value.name))
+                speak(lifecycle.outro ?: DjDialogueSkill.fallbackOutro(state.value.name, generation.toInt()))
             }
         }
         scope.launch {
@@ -139,7 +131,10 @@ class DjService(
     private suspend fun speak(script: String) {
         if (!state.value.enabled || !state.value.available || !lifecycle.owns(queue.currentCollectionEntryFlow.value)) return
         state.update { it.copy(speaking = true, script = script, message = null) }
-        try { withTimeout(15_000) { speech.speak(script, settings.userSettings.value.language.locale) } }
+        try { withTimeout(15_000) {
+            val prefs = settings.userSettings.value
+            speech.speak(script, prefs.language.locale, DjSpeechOptions(prefs.djVoiceCharacter, prefs.djVoiceGender, prefs.djVoiceAccent, prefs.djVoiceExpressiveness, prefs.djVoiceSpeed))
+        } }
         catch (cancelled: CancellationException) {
             if (cancelled !is TimeoutCancellationException) throw cancelled
             val message = getString(Res.string.dj_unavailable)
@@ -191,16 +186,20 @@ class DjService(
                 }
                 val currentIds = queue.queueFlow.value.filterIsInstance<QueueEntry.StreamingTrack>().map { it.track.id }.toSet()
                 val fresh = pool.filter { it.id !in currentIds }
-                val choices = (fresh + pool).distinctBy { it.id }
+                val choices = artistDiversePool((fresh + pool).distinctBy { it.id })
                 val tracks = aiPlanner?.order(choices) ?: choices.take(DJ_SET_SIZE)
                 if (tracks.size < DJ_SET_SIZE) error("Insufficient DJ candidates")
                 ensureActive()
                 if (token != generation || !state.value.enabled || !state.value.available) return@launch
                 val setId = "${Clock.System.now().toEpochMilliseconds()}-$token"
-                lifecycle.begin(setId)
+                val diverseTracks = enforceArtistDiversity(tracks, choices)
+                val dialogue = aiPlanner?.dialogue(state.value.name, diverseTracks)
+                val intro = dialogue?.first ?: DjDialogueSkill.fallbackIntro(state.value.name, diverseTracks.size, token.toInt())
+                val outro = dialogue?.second ?: DjDialogueSkill.fallbackOutro(state.value.name, token.toInt())
+                lifecycle.begin(setId, intro, outro)
                 player.announcementsEnabled = true
                 player.loop(LoopState.NONE)
-                queue.load(tracks.map { QueueEntry.StreamingTrack(it, "") }, collectionEntry = QueueCollectionEntry.DjSet(setId))
+                queue.load(diverseTracks.map { QueueEntry.StreamingTrack(it, "") }, collectionEntry = QueueCollectionEntry.DjSet(setId))
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) {
                 val message = getString(Res.string.dj_no_recommendations)
@@ -239,4 +238,22 @@ class DjService(
     fun close() {
         scope.cancel(); speech.stop(); player.beforeTrack = null; player.afterQueue = null; player.announcementsEnabled = false
     }
+}
+
+private fun artistKey(track: org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack) =
+    track.artists.firstOrNull()?.id?.ifBlank { null } ?: track.artists.firstOrNull()?.name?.lowercase().orEmpty()
+
+/** Intercala artistas antes de consultar IA para que no vea un catálogo sesgado por favoritos. */
+private fun artistDiversePool(tracks: List<org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack>): List<org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack> {
+    val groups = tracks.groupBy(::artistKey).values.map { it.toMutableList() }
+    val result = mutableListOf<org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack>()
+    while (groups.any { it.isNotEmpty() } && result.size < 20) groups.forEach { if (it.isNotEmpty()) result += it.removeAt(0) }
+    return result
+}
+
+private fun enforceArtistDiversity(selected: List<org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack>, pool: List<org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack>): List<org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack> {
+    val artists = linkedSetOf<String>(); val result = mutableListOf<org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack>()
+    (selected + pool).forEach { track -> if (result.size < DJ_SET_SIZE && artists.add(artistKey(track))) result += track }
+    (selected + pool).forEach { track -> if (result.size < DJ_SET_SIZE && track !in result) result += track }
+    return result
 }

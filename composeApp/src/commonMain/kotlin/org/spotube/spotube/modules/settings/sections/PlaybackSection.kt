@@ -124,6 +124,52 @@ internal fun LazyListScope.playbackSection(
                 value = settings.djName,
                 onValueSaved = settingsViewModel::setDjName)
         }
+        add {
+            SelectionSettingCard(
+                title = stringResource(Res.string.dj_voice_character_title), selectedOption = settings.djVoiceCharacter,
+                options = org.spotube.spotube.modules.settings.DjVoiceCharacter.entries.toList(),
+                optionLabel = { stringResource(when (it) {
+                    org.spotube.spotube.modules.settings.DjVoiceCharacter.NATURAL -> Res.string.dj_voice_natural
+                    org.spotube.spotube.modules.settings.DjVoiceCharacter.WARM -> Res.string.dj_voice_warm
+                    org.spotube.spotube.modules.settings.DjVoiceCharacter.ENERGETIC -> Res.string.dj_voice_energetic
+                    org.spotube.spotube.modules.settings.DjVoiceCharacter.CALM -> Res.string.dj_voice_calm }) },
+                onOptionSelected = { settingsViewModel.updateSettings { copy(djVoiceCharacter = it) } })
+        }
+        add {
+            SelectionSettingCard(
+                title = stringResource(Res.string.dj_voice_accent_title), selectedOption = settings.djVoiceAccent,
+                options = org.spotube.spotube.modules.settings.DjVoiceAccent.entries.toList(),
+                optionLabel = { stringResource(when (it) {
+                    org.spotube.spotube.modules.settings.DjVoiceAccent.SYSTEM -> Res.string.dj_voice_system
+                    org.spotube.spotube.modules.settings.DjVoiceAccent.COLOMBIA -> Res.string.dj_voice_colombia
+                    org.spotube.spotube.modules.settings.DjVoiceAccent.MEXICO -> Res.string.dj_voice_mexico
+                    org.spotube.spotube.modules.settings.DjVoiceAccent.SPAIN -> Res.string.dj_voice_spain
+                    org.spotube.spotube.modules.settings.DjVoiceAccent.ARGENTINA -> Res.string.dj_voice_argentina }) },
+                onOptionSelected = { settingsViewModel.updateSettings { copy(djVoiceAccent = it) } })
+        }
+        add {
+            SelectionSettingCard(title = stringResource(Res.string.dj_voice_gender_title), selectedOption = settings.djVoiceGender,
+                options = org.spotube.spotube.modules.settings.DjVoiceGender.entries.toList(),
+                optionLabel = { stringResource(when (it) {
+                    org.spotube.spotube.modules.settings.DjVoiceGender.AUTO -> Res.string.dj_voice_auto
+                    org.spotube.spotube.modules.settings.DjVoiceGender.FEMALE -> Res.string.dj_voice_female
+                    org.spotube.spotube.modules.settings.DjVoiceGender.MALE -> Res.string.dj_voice_male
+                    org.spotube.spotube.modules.settings.DjVoiceGender.NEUTRAL -> Res.string.dj_voice_neutral }) },
+                onOptionSelected = { settingsViewModel.updateSettings { copy(djVoiceGender = it) } })
+        }
+        add {
+            SelectionSettingCard(title = stringResource(Res.string.dj_voice_expressiveness_title), selectedOption = settings.djVoiceExpressiveness,
+                options = org.spotube.spotube.modules.settings.DjVoiceExpressiveness.entries.toList(),
+                optionLabel = { stringResource(when (it) {
+                    org.spotube.spotube.modules.settings.DjVoiceExpressiveness.NATURAL -> Res.string.dj_voice_natural
+                    org.spotube.spotube.modules.settings.DjVoiceExpressiveness.SOFT -> Res.string.dj_voice_soft
+                    org.spotube.spotube.modules.settings.DjVoiceExpressiveness.EXPRESSIVE -> Res.string.dj_voice_expressive }) },
+                onOptionSelected = { settingsViewModel.updateSettings { copy(djVoiceExpressiveness = it) } })
+        }
+        add {
+            SettingCardItem(title = stringResource(Res.string.dj_voice_speed_title), subtitle = stringResource(Res.string.dj_voice_speed_value, settings.djVoiceSpeed), trailingContent = {
+                org.spotube.millennium.composables.MillenniumSlider(value = settings.djVoiceSpeed, onValueChange = { value -> settingsViewModel.updateSettings { copy(djVoiceSpeed = value) } }, label = stringResource(Res.string.dj_voice_speed_title), valueRange = .75f..1.35f, modifier = androidx.compose.ui.Modifier.width(160.dp)) })
+        }
         add { org.spotube.spotube.features.dj.DjAiConfiguration() }
         add {
             SelectionSettingCard(

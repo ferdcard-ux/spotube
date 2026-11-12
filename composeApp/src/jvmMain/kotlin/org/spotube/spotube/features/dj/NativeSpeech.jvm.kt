@@ -8,7 +8,7 @@ import java.util.Base64
 actual class NativeSpeech actual constructor(context: Any) {
     private var process: Process? = null
 
-    actual suspend fun speak(text: String, language: String) = withContext(Dispatchers.IO) {
+    actual suspend fun speak(text: String, language: String, options: DjSpeechOptions) = withContext(Dispatchers.IO) {
         stop()
         val os = System.getProperty("os.name").lowercase()
         // El texto viaja por stdin: nunca se interpola en un comando del sistema.
@@ -16,7 +16,7 @@ actual class NativeSpeech actual constructor(context: Any) {
             os.contains("win") -> {
                 val script = "[Console]::InputEncoding = [System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.Speech; " +
                     "\$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
-                    "\$s.Speak([Console]::In.ReadToEnd()); \$s.Dispose()"
+                    "\$s.Rate = ${((options.speed - 1f) * 10).toInt().coerceIn(-10, 10)}; \$s.Speak([Console]::In.ReadToEnd()); \$s.Dispose()"
                 listOf("powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand",
                     Base64.getEncoder().encodeToString(script.toByteArray(Charsets.UTF_16LE)))
             }
