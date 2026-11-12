@@ -206,6 +206,13 @@ class DjService(
     fun showPanel() { state.update { it.copy(panelVisible = true) } }
     fun hidePanel() { state.update { it.copy(panelVisible = false) } }
 
+    /** Reintenta bajo petición del usuario, sin borrar ni volver a solicitar su clave. */
+    fun retryRecommendations() {
+        if (!state.value.enabled || state.value.loading || player.synchronizedPlaybackFlow.value) return
+        blocksJob?.cancel()
+        blocksJob = scope.launch { loadBlock() }
+    }
+
     fun close() {
         scope.cancel()
         speech.stop()

@@ -57,6 +57,31 @@ fun DjAiConfiguration(viewModel: DjAiViewModel = koinViewModel()) {
                 DjAiStatus.READY -> Res.string.dj_ai_ready
                 DjAiStatus.LOCAL_FALLBACK -> Res.string.dj_ai_fallback
             }))
+            state.failure?.let { failure ->
+                Text(stringResource(when (failure) {
+                    DjAiFailure.CONFIGURATION -> Res.string.dj_ai_error_configuration
+                    DjAiFailure.NO_CANDIDATES -> Res.string.dj_ai_error_candidates
+                    DjAiFailure.FREE_MODEL_REQUIRED -> Res.string.dj_ai_error_free_model
+                    DjAiFailure.AUTHENTICATION -> Res.string.dj_ai_error_authentication
+                    DjAiFailure.PERMISSION -> Res.string.dj_ai_error_permission
+                    DjAiFailure.ACCOUNT_LIMIT -> Res.string.dj_ai_error_account
+                    DjAiFailure.RATE_LIMIT -> Res.string.dj_ai_error_rate_limit
+                    DjAiFailure.MODEL_UNAVAILABLE -> Res.string.dj_ai_error_model
+                    DjAiFailure.REQUEST_REJECTED -> Res.string.dj_ai_error_request
+                    DjAiFailure.PROVIDER_UNAVAILABLE -> Res.string.dj_ai_error_provider
+                    DjAiFailure.TIMEOUT -> Res.string.dj_ai_error_timeout
+                    DjAiFailure.NETWORK -> Res.string.dj_ai_error_network
+                    DjAiFailure.EMPTY_RESPONSE -> Res.string.dj_ai_error_empty
+                    DjAiFailure.OUTPUT_LIMIT -> Res.string.dj_ai_error_output_limit
+                    DjAiFailure.INVALID_RESPONSE -> Res.string.dj_ai_error_response
+                    DjAiFailure.INVALID_PLAN -> Res.string.dj_ai_error_plan
+                }))
+            }
+            state.httpStatus?.let { Text(stringResource(Res.string.dj_ai_http_status, it)) }
+            MillenniumButton(onClick = viewModel::retry, enabled = state.canRetry) {
+                Text(stringResource(Res.string.dj_ai_retry))
+            }
+            Text(stringResource(Res.string.dj_ai_retry_hint))
             MillenniumButton(onClick = viewModel::clear, style = MillenniumButtonStyle.Secondary) {
                 Text(stringResource(Res.string.dj_ai_clear))
             }

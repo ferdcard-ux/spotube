@@ -1,9 +1,7 @@
 package org.spotube.spotube.features.dj
 
 import androidx.lifecycle.ViewModel
-import io.ktor.client.request.*
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.*
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withTimeoutOrNull
@@ -13,6 +11,11 @@ import org.spotube.spotube.core.network.HttpClientFactory
 
 enum class DjAiProvider { OPENROUTER, GEMINI, GROQ }
 enum class DjAiStatus { IDLE, PLANNING, READY, LOCAL_FALLBACK }
+enum class DjAiFailure {
+    CONFIGURATION, NO_CANDIDATES, FREE_MODEL_REQUIRED, AUTHENTICATION, PERMISSION, ACCOUNT_LIMIT,
+    RATE_LIMIT, MODEL_UNAVAILABLE, REQUEST_REJECTED, PROVIDER_UNAVAILABLE, TIMEOUT, NETWORK,
+    EMPTY_RESPONSE, OUTPUT_LIMIT, INVALID_RESPONSE, INVALID_PLAN,
+}
 data class DjAiUiState(
     val enabled: Boolean = false,
     val provider: DjAiProvider = DjAiProvider.OPENROUTER,
@@ -20,27 +23,51 @@ data class DjAiUiState(
     val apiKey: String = "",
     val request: String = "",
     val status: DjAiStatus = DjAiStatus.IDLE,
-)
+    val failure: DjAiFailure? = null,
+    val httpStatus: Int? = null,
+    val canRetry: Boolean = false,
+    val revision: Long = 0,
+    val requestId: Long = 0,
+) {
+    override fun toString() = "DjAiUiState(enabled=$enabled, provider=$provider, status=$status, failure=$failure, httpStatus=$httpStatus)"
+}
 
 /** Configuración voluntaria en RAM: la clave nunca se guarda en preferencias ni se registra. */
 class DjAiSession {
     private val state = MutableStateFlow(DjAiUiState())
     val uiState = state.asStateFlow()
-    fun enable(enabled: Boolean) { state.update { it.copy(enabled = enabled) } }
+    private fun edit(transform: DjAiUiState.() -> DjAiUiState) {
+        state.update { current -> current.transform().copy(revision = current.revision + 1,
+            status = DjAiStatus.IDLE, failure = null, httpStatus = null) }
+    }
+    fun enable(enabled: Boolean) { edit { copy(enabled = enabled) } }
     fun provider(provider: DjAiProvider) {
         if (state.value.provider == provider) return
-        state.update { it.copy(provider = provider,
-            model = if (provider == DjAiProvider.OPENROUTER) "openrouter/free" else "", apiKey = "", status = DjAiStatus.IDLE) }
+        edit { copy(provider = provider, model = if (provider == DjAiProvider.OPENROUTER) "openrouter/free" else "", apiKey = "") }
     }
-    fun model(value: String) { state.update { it.copy(model = value.trim().take(160)) } }
-    fun key(value: String) { state.update { it.copy(apiKey = value.trim().take(1024)) } }
-    fun request(value: String) { state.update { it.copy(request = value.take(300)) } }
-    fun status(status: DjAiStatus) { state.update { it.copy(status = status) } }
-    fun clear() { state.value = DjAiUiState() }
+    fun model(value: String) { edit { copy(model = value.trim().take(160)) } }
+    fun key(value: String) { edit { copy(apiKey = value.trim().take(1024)) } }
+    fun request(value: String) { edit { copy(request = value.take(300)) } }
+    fun clear() { edit { DjAiUiState(requestId = requestId) } }
+
+    internal fun beginRequest(): DjAiUiState = state.updateAndGet {
+        it.copy(status = DjAiStatus.PLANNING, failure = null, httpStatus = null, requestId = it.requestId + 1)
+    }
+    internal fun complete(attempt: DjAiUiState, status: DjAiStatus, failure: DjAiFailure? = null, httpStatus: Int? = null): Boolean {
+        var accepted = false
+        state.update { current ->
+            accepted = current.enabled && current.revision == attempt.revision && current.requestId == attempt.requestId
+            if (accepted) current.copy(status = status, failure = failure, httpStatus = httpStatus) else current
+        }
+        return accepted
+    }
 }
 
-class DjAiViewModel(private val session: DjAiSession) : ViewModel() {
-    val uiState = session.uiState
+class DjAiViewModel(private val session: DjAiSession, private val dj: DjService) : ViewModel() {
+    val uiState = combine(session.uiState, dj.uiState) { ai, player ->
+        ai.copy(canRetry = player.enabled && !player.loading)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, session.uiState.value)
+    fun retry() = dj.retryRecommendations()
     fun enable(value: Boolean) = session.enable(value)
     fun provider(value: DjAiProvider) = session.provider(value)
     fun model(value: String) = session.model(value)
@@ -60,17 +87,19 @@ fun validateDjPlan(response: String, allowedIds: Set<String>, count: Int): List<
     ids.takeIf { it.size == count && it.distinct().size == count && it.all(allowedIds::contains) }
 }.getOrNull()
 
-class DjAiPlanner(private val session: DjAiSession, private val clients: HttpClientFactory) {
+class DjAiPlanner internal constructor(private val session: DjAiSession, private val transport: DjAiTransport) {
+    constructor(session: DjAiSession, clients: HttpClientFactory) : this(session, KtorDjAiTransport(clients))
     suspend fun order(candidates: List<MetadataTrack>): List<MetadataTrack>? {
-        val config = session.uiState.value
-        if (!config.enabled) return null
+        if (!session.uiState.value.enabled) return null
+        val config = session.beginRequest()
         if (config.apiKey.isBlank() || config.model.isBlank() || candidates.isEmpty()) {
-            session.status(DjAiStatus.LOCAL_FALLBACK)
+            session.complete(config, DjAiStatus.LOCAL_FALLBACK,
+                if (candidates.isEmpty()) DjAiFailure.NO_CANDIDATES else DjAiFailure.CONFIGURATION)
             return null
         }
         // OpenRouter solo acepta aquí rutas explícitamente gratuitas, sin sustitución por modelos de pago.
         if (config.provider == DjAiProvider.OPENROUTER && config.model != "openrouter/free" && !config.model.endsWith(":free")) {
-            session.status(DjAiStatus.LOCAL_FALLBACK)
+            session.complete(config, DjAiStatus.LOCAL_FALLBACK, DjAiFailure.FREE_MODEL_REQUIRED)
             return null
         }
         val choices = candidates.distinctBy { it.id }.take(20)
@@ -85,43 +114,17 @@ class DjAiPlanner(private val session: DjAiSession, private val clients: HttpCli
                 track.genre?.let { put("genre", it) }
             }) } }
         }.toString()
-        session.status(DjAiStatus.PLANNING)
-        val plan = try {
-            withTimeoutOrNull(8_000) {
-                val gemini = config.provider == DjAiProvider.GEMINI
-                val endpoint = when (config.provider) {
-                    DjAiProvider.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
-                    DjAiProvider.GROQ -> "https://api.groq.com/openai/v1/chat/completions"
-                    DjAiProvider.GEMINI -> "https://generativelanguage.googleapis.com/v1beta/models/${config.model.encodeURLPathPart()}:generateContent"
-                }
-                val body = if (gemini) buildJsonObject {
-                    putJsonArray("contents") { add(buildJsonObject { putJsonArray("parts") { add(buildJsonObject { put("text", prompt) }) } }) }
-                } else buildJsonObject {
-                    put("model", config.model)
-                    put("max_tokens", 256)
-                    putJsonArray("messages") { add(buildJsonObject { put("role", "user"); put("content", prompt) }) }
-                }
-                val response = clients.default.post(endpoint) {
-                    contentType(ContentType.Application.Json)
-                    if (gemini) header("x-goog-api-key", config.apiKey) else bearerAuth(config.apiKey)
-                    setBody(body.toString())
-                }
-                if (!response.status.isSuccess()) return@withTimeoutOrNull null
-                val raw = response.bodyAsText()
-                if (raw.length > 65_536) return@withTimeoutOrNull null
-                val parsed = Json.parseToJsonElement(raw).jsonObject
-                val text = if (gemini) parsed["candidates"]?.jsonArray?.firstOrNull()?.jsonObject
-                    ?.get("content")?.jsonObject?.get("parts")?.jsonArray?.firstOrNull()?.jsonObject?.get("text")?.jsonPrimitive?.content
-                else parsed["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.content
-                val ids = validateDjPlan(text ?: return@withTimeoutOrNull null, choices.map { it.id }.toSet(), count)
-                    ?: return@withTimeoutOrNull null
-                ids.map { id -> choices.first { it.id == id } }
-            }
-        } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { null }
-        // Si el usuario desactiva IA durante la petición, su respuesta ya no puede cambiar la cola.
-        val accepted = plan.takeIf { session.uiState.value == config.copy(status = DjAiStatus.PLANNING) }
-        session.status(if (accepted == null) DjAiStatus.LOCAL_FALLBACK else DjAiStatus.READY)
-        return accepted
+        val result = try {
+            withTimeoutOrNull(30_000) {
+                decodeDjAiReply(transport.send(config, prompt), config.provider, choices.map { it.id }.toSet(), count)
+            } ?: DjAiDecoded(failure = DjAiFailure.TIMEOUT)
+        } catch (cancelled: CancellationException) {
+            session.complete(config, DjAiStatus.IDLE)
+            throw cancelled
+        } catch (_: Exception) { DjAiDecoded(failure = DjAiFailure.NETWORK) }
+        // Revisiones y números de petición evitan aceptar respuestas viejas, incluso tras desactivar/reactivar IA.
+        val status = if (result.ids == null) DjAiStatus.LOCAL_FALLBACK else DjAiStatus.READY
+        if (!session.complete(config, status, result.failure, result.httpStatus)) return null
+        return result.ids?.map { id -> choices.first { it.id == id } }
     }
 }

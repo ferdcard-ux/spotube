@@ -311,8 +311,8 @@ val sharedModules = module {
     singleOf(::AudioPlayerQueueRepository) { bind<QueueStateRepository>() }
     single { org.spotube.spotube.features.dj.DjHistory(get()) }
     single { org.spotube.spotube.features.dj.DjAiSession() } withOptions { onClose { it?.clear() } }
-    single { org.spotube.spotube.features.dj.DjAiPlanner(get(), get()) }
-    viewModel { org.spotube.spotube.features.dj.DjAiViewModel(get()) }
+    single { org.spotube.spotube.features.dj.DjAiPlanner(get(), get<HttpClientFactory>()) }
+    viewModel { org.spotube.spotube.features.dj.DjAiViewModel(get(), get()) }
     single { org.spotube.spotube.features.dj.DjService(get(), get(), get(), get(), get(), get(), get(), get()) } withOptions {
         createdAtStart()
         onClose { it?.close() }
