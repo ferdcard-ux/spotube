@@ -239,4 +239,46 @@ class TransitionAudioPlayerTest {
             assertEquals(tracks[2], b.currentMediaItemFlow.value)
         } finally { player.dispose(); Dispatchers.resetMain() }
     }
+
+    @Test fun djSpeaksAtSetBoundariesAndNeverDuringPlaylistMix() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val deck = Deck()
+        val settings = object : UserSettingsSource {
+            override val userSettings = MutableStateFlow(UserSettings(crossfadeSeconds = 0, djMode = true, autoMixEnabled = true))
+        }
+        val player = TransitionAudioPlayer(deck, { Deck() }, settings)
+        val lifecycle = org.spotube.spotube.features.dj.DjSetLifecycle()
+        var collection: QueueCollectionEntry = QueueCollectionEntry.DjSet("set-one")
+        lifecycle.begin(collection.id)
+        var introductions = 0
+        var endings = 0
+        player.beforeTrack = { if (lifecycle.introduction(collection)) introductions++ }
+        player.afterQueue = { if (lifecycle.ending(collection)) endings++ }
+        try {
+            player.load((1..6).map { track("song-$it") }, true, 0)
+            runCurrent()
+            assertEquals(1, introductions)
+            repeat(5) { player.skipToNext(); runCurrent() }
+            assertEquals(1, introductions)
+            assertEquals(0, endings)
+            deck.playerStateFlow.value = PlayerState.COMPLETED
+            advanceTimeBy(100); runCurrent()
+            assertEquals(1, endings)
+            advanceTimeBy(100); runCurrent()
+            assertEquals(1, endings)
+            collection = QueueCollectionEntry.Playlist("playlist")
+            player.playlistContext = true
+            player.load(listOf(track("playlist-song")), true, 0)
+            runCurrent()
+            assertEquals(1, introductions)
+            deck.playerStateFlow.value = PlayerState.COMPLETED
+            advanceTimeBy(100); runCurrent()
+            assertEquals(1, endings)
+            collection = QueueCollectionEntry.DjSet("set-two")
+            lifecycle.begin(collection.id)
+            player.load((1..6).map { track("new-$it") }, true, 0)
+            runCurrent()
+            assertEquals(2, introductions)
+        } finally { player.dispose(); Dispatchers.resetMain() }
+    }
 }

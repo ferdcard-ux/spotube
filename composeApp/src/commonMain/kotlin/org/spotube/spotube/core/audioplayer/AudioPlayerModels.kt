@@ -135,6 +135,10 @@ sealed interface QueueCollectionEntry {
         override val id: String) : QueueCollectionEntry
 
     @Serializable
+    @SerialName("dj_set")
+    data class DjSet(override val id: String) : QueueCollectionEntry
+
+    @Serializable
     @SerialName("album")
     data class Album(
         override val id: String) : QueueCollectionEntry

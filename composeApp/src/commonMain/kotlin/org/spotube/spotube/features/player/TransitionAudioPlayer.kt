@@ -37,6 +37,7 @@ class TransitionAudioPlayer(
     var playlistMixOverride: Boolean? = null
     // El DJ intercepta el inicio antes de reproducir; cancelar la operación cancela también la voz.
     var beforeTrack: (suspend (MediaItem) -> Unit)? = null
+    var afterQueue: (suspend () -> Unit)? = null
     var announcementsEnabled = false
     private val synchronizedPlayback = MutableStateFlow(false)
     val synchronizedPlaybackFlow: StateFlow<Boolean> = synchronizedPlayback.asStateFlow()
@@ -115,6 +116,9 @@ class TransitionAudioPlayer(
             if (deck.playerStateFlow.value == PlayerState.COMPLETED) {
                 wantsPlay = false
                 completion.tryEmit(Unit)
+                afterQueue?.takeUnless { synchronizedPlayback.value }?.let { finish ->
+                    announcementJob = scope.launch { finish() }
+                }
             }
             return
         }

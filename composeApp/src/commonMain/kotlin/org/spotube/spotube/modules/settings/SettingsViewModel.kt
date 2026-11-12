@@ -48,10 +48,7 @@ class SettingsViewModel(
 
     fun updateSettings(transform: UserSettings.() -> UserSettings) {
         viewModelScope.launch {
-            // Get current state, apply transform, and save
-            val currentSettings = settingsState.value ?: return@launch
-            val newSettings = currentSettings.transform()
-            repository.updateSettings(newSettings)
+            repository.mutateSettings { it.transform() }
         }
     }
 }

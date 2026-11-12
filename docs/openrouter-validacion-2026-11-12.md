@@ -1,5 +1,7 @@
 # Comprobación de OpenRouter en el Moto g22
 
+> Informe de la etapa anterior. La configuración en memoria y el botón de reintento descritos aquí fueron sustituidos por almacenamiento seguro por proveedor y el botón DJ para iniciar sets. El comportamiento y la validación actuales se documentan en [DJ y Mix](dj-mix-ajustes.md).
+
 El usuario introdujo su clave directamente en Nightly y activó la IA con `openrouter/free`. La prueba se realizó usando la configuración que ya estaba en memoria, sin leer la clave, reiniciar la app ni extraer credenciales. No se incorporan al repositorio los títulos o las capturas de su sesión privada.
 
 ## Resultado inicial

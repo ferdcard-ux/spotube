@@ -1517,6 +1517,44 @@ En la TV, el lanzador mostraba un icono distinto al de Spotube y recortado.
 
 ---
 
+## 31. Reproducción — DJ, Mix y credenciales seguras
+
+### Objetivo
+Completar la evolución del reproductor Nightly antes de preparar una Release: separar los flujos de DJ y Mix, persistir de forma segura las claves de proveedores de IA y validar la experiencia en un Moto g22.
+
+### Implementación
+- **Credenciales de IA:** cada proveedor conserva su propia clave y modelo. Las claves no se incluyen en `UserSettings`, DataStore, trazas ni documentación; se almacenan mediante Android Keystore con AES-GCM en Android, DPAPI en Windows, Keychain en iOS/macOS y Secret Service en Linux.
+- **DJ:** el interruptor de Ajustes solo habilita el modo. El botón fijo de la barra inferior inicia o reemplaza un set. Cada set contiene seis pistas distintas como mínimo, toma candidatas de historial, playlists guardadas, cola y descubrimientos del proveedor, y usa la IA únicamente para elegir IDs reales entre las candidatas.
+- **Voz:** la voz nativa saluda al inicio del set y se despide al terminarlo. No presenta cada canción. La tarjeta con onda refleja carga, voz y errores.
+- **Mix:** queda limitado a playlists y canciones guardadas. No activa la voz ni usa la configuración del DJ. Sus controles muestran desactivado, activo y reproduciendo.
+- **Colas:** `DjSet` identifica de forma explícita un bloque DJ. La reproducción infinita no agrega recomendaciones a ese bloque y las respuestas de red antiguas no pueden modificar una cola que ya fue sustituida.
+- **UI y documentación:** textos en inglés/español, configuración de IA solo desde Ajustes, guía actualizada en `docs/dj-mix-ajustes.md`.
+
+### Verificación
+- **Compilación:** `:composeApp:assembleNightlyDebug`, `:composeApp:assembleNightlyDebugAndroidTest` y pruebas JVM completaron correctamente.
+- **Pruebas JVM:** 32 pruebas aprobadas para selección IA, sesión de credenciales, almacenamiento DPAPI, ciclo de set, transiciones y reproducción nativa.
+- **Moto g22:** APK Nightly final instalado como actualización, sin desinstalar ni borrar datos. SHA-256: `321e645f045c66932299d6b5cc2468d33dea736c87f56cc5c17361876dc61129`.
+- **Almacén seguro Android:** prueba aislada con claves ficticias aprobada: cifrado, recreación, aislamiento entre proveedores, borrado selectivo y detección de alteraciones.
+- **DJ en hardware:** sets de seis pistas distintas; bienvenida y despedida observadas una sola vez; siguiente, anterior y pausa no activaron anuncios por pista. Un nuevo toque en DJ reemplazó el bloque.
+- **Mix en hardware:** playlist reproducida con DJ habilitado, sin voz; estados desactivado, reproduciendo y pausado comprobados.
+- **Proveedor real:** Groq quedó seleccionado y validado después de reiniciar Nightly. Su clave se mantuvo enmascarada y Ajustes confirmó almacenamiento seguro. OpenRouter no se validó porque no fue el proveedor seleccionado en el dispositivo.
+
+### Alcance del cambio
+- Incluye Nightly Android, las capas compartidas KMP y los almacenamientos seguros de plataformas.
+- No se compila ni se publica Release en esta etapa. El usuario probará Nightly antes de autorizar esa compilación.
+- No se leen, exportan ni registran claves de API ni datos privados de la sesión musical.
+
+### No verificado / atajos de prueba
+- OpenRouter con una clave real en el almacén nuevo queda pendiente de una prueba explícita; el proveedor validado fue Groq.
+- Los almacenes Keychain de iOS/macOS y Secret Service de Linux se implementaron, pero no se probaron en esos sistemas desde Windows.
+- No se recorrió una playlist completa hasta su transición final de Mix en hardware; se verificaron la reproducción, los estados del control y la ausencia de voz DJ.
+
+### Cambios residuales en el entorno
+- **Moto g22:** Nightly permanece instalada y con DJ, Automix y reproducción sin pausas habilitados. La cola contiene el último set DJ reproducido y la configuración IA persiste en el almacenamiento seguro local.
+- **Equipo:** salidas de compilación Nightly y APK de pruebas actualizadas. Las capturas y artefactos temporales de validación permanecen fuera del contenido versionado.
+
+---
+
 ## Historial de Versiones
 
 | Fecha | Versión | Cambios |
@@ -1546,3 +1584,4 @@ En la TV, el lanzador mostraba un icono distinto al de Spotube y recortado.
 | 2026-11-06 | — (sin publicación) | Ventana agrupada con Plank (§28): `StartupWMClass` corregido a `Spotube` según el `WM_CLASS` real; `.deb` GraalVM compilado en 1 h 48 min, verificado por extracción y confirmado funcionando tras instalarlo |
 | 2026-11-06 | — (sin publicación) | Spotube no abría en la TV física (§29): librería Rust desajustada con sus bindings UniFFI, que se cargaba vía Discord Rich Presence. Discord solo en escritorio, `catch Throwable` y Rust recompilado desde cero. Verificado en la TV: abre y reproduce sin cierres |
 | 2026-11-06 | — (sin publicación) | Banner de Android TV (§30): el provisional (nota verde recortada) se sustituye por los auriculares oficiales y el logotipo «Spotube». La protección de firma solo se aplica a `:composeApp`. Verificado en el lanzador del emulador |
+| 2026-11-12 | Nightly local (sin publicación) | DJ, Mix y credenciales seguras (§31): sets de seis pistas, voz por bloque, Mix aislado, almacenamiento nativo por proveedor y validación en Moto g22. Release pendiente de pruebas manuales de Nightly |

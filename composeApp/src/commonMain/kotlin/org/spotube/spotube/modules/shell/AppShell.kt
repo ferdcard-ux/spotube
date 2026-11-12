@@ -307,6 +307,9 @@ fun AppShell(
 
         // Drawn last so it floats above the players/sheets, just above the
         // bottom overlay (large player or compact player + bottombar).
+        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = bottomOverlayInset + 12.dp)) {
+            org.spotube.spotube.features.dj.DjCard()
+        }
         MillenniumSnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier

@@ -35,6 +35,9 @@ actual val platformModules = module {
         org.spotube.spotube.features.player.TransitionAudioPlayer(
             AudioPlayer(context), { AudioPlayer(context) }, get())
     }
+    single<org.spotube.spotube.features.dj.DjCredentialStore> {
+        org.spotube.spotube.features.dj.NativeDjCredentialStore(get<Context>(), "providers-v1")
+    }
     single<org.spotube.spotube.features.dj.NativeSpeech> {
         org.spotube.spotube.features.dj.NativeSpeech(get<Context>())
     }

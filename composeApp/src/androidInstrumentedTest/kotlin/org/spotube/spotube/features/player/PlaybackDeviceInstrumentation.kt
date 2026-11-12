@@ -45,6 +45,17 @@ class PlaybackDeviceInstrumentation : Instrumentation() {
 
     override fun onStart() {
         val summary = Bundle()
+        if (selected == "secure_credentials") {
+            try {
+                org.spotube.spotube.features.dj.DjCredentialDeviceChecks.run(targetContext)
+                summary.putString("stream", "Secure credentials: encryption, restart, provider isolation, selective deletion and tamper detection passed.\n")
+                finish(Activity.RESULT_OK, summary)
+            } catch (error: Throwable) {
+                summary.putString("stream", "Secure credential checks failed: ${error::class.simpleName}\n")
+                finish(Activity.RESULT_CANCELED, summary)
+            }
+            return
+        }
         var passed = true
         try {
             check(targetContext.packageName.endsWith(".nightly")) {
@@ -232,24 +243,21 @@ class PlaybackDeviceInstrumentation : Instrumentation() {
 
     private suspend fun dj() {
         configure(6, dj = true)
-        // Se comprueba el motor instalado y después el flujo real de presentación de DjService.
-        withTimeout(15_000) { koin.get<NativeSpeech>().speak("Prueba de voz de DJ Livi.", "es") }
+        // Voz nativa disponible; habilitar DJ no debe presentar las pistas de una playlist.
+        withTimeout(15_000) { koin.get<NativeSpeech>().speak("Prueba de voz del DJ.", "es") }
         val service = koin.get<DjService>()
-        player.load(listOf(track(firstFile)), true, 0)
-        service.uiState.first { it.speaking }
-        check(player.activeDeck.value.playerStateFlow.value != PlayerState.PLAYING) {
-            "La música empezó antes de terminar la voz"
-        }
-        check(!service.uiState.value.script.isNullOrBlank()) { "Guion vacío" }
-        service.uiState.first { !it.speaking }
+        val queue = koin.get<AudioPlayerQueue>()
+        queue.load(listOf(firstFile, secondFile).map { file ->
+            QueueEntry.LocalTrack(file.name, listOf("Test"), 24_000, "Test", url = file.toURI().toString())
+        }, collectionEntry = QueueCollectionEntry.Playlist("instrumentation-mix"))
         player.playerStateFlow.first { it == PlayerState.PLAYING }
-        // Una segunda presentación permite comprobar la cancelación desde pause.
-        player.load(listOf(track(secondFile)), true, 0)
-        service.uiState.first { it.speaking }
-        player.pause()
-        service.uiState.first { !it.speaking }
+        delay(600)
+        check(!service.uiState.value.speaking) { "El DJ hablo durante una playlist" }
+        player.skipToNext()
         delay(300)
-        check(player.activeDeck.value.playerStateFlow.value != PlayerState.PLAYING) { "La voz reanudó la música tras pausa" }
+        check(!service.uiState.value.speaking) { "El DJ anuncio la siguiente pista de Mix" }
+        player.pause()
+        check(player.activeDeck.value.playerStateFlow.value != PlayerState.PLAYING)
         player.play()
         player.playerStateFlow.first { it == PlayerState.PLAYING }
     }

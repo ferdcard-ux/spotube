@@ -67,6 +67,11 @@ data class UserSettings(
     val playlistMixOverrides: Map<String, Boolean> = emptyMap(),
     val djMode: Boolean = false,
     val djName: String = "Livi",
+    // Solo preferencias locales; las claves se guardan en el almacen seguro nativo.
+    val djAiEnabled: Boolean = false,
+    val djAiProvider: String = "OPENROUTER",
+    val djAiModels: Map<String, String> = emptyMap(),
+    val djAiRequest: String = "",
     val playbackProxyServerPort: Int = 14769,
 
     // Remote Control (LAN)

@@ -9,7 +9,7 @@ import org.spotube.plugin_interfaces.plugin_apis.metadata.album.MetadataAlbum
 import org.spotube.plugin_interfaces.plugin_apis.metadata.album.MetadataAlbumType
 
 class DjAiPlannerTest {
-    private val allowed = setOf("a", "b", "c", "d", "e")
+    private val allowed = setOf("a", "b", "c", "d", "e", "f", "g")
 
     private fun track(id: String) = MetadataTrack(
         id = id, title = "Test $id", durationMs = 180_000, trackNumber = 1, discNumber = 1,
@@ -19,7 +19,7 @@ class DjAiPlannerTest {
             albumType = MetadataAlbumType.Album, artists = emptyList(), externalUri = null))
 
     private fun configured() = DjAiSession().apply { key("test-only-not-a-real-secret"); enable(true) }
-    private fun validReply() = reply("""{"track_ids":["d","a","c","b"]}""")
+    private fun validReply() = reply("""{"track_ids":["d","a","c","b","e","f"]}""")
     private fun reply(content: String?, finish: String = "stop") = DjAiReply(200, buildJsonObject {
         putJsonArray("choices") { add(buildJsonObject {
             put("finish_reason", finish)
@@ -46,7 +46,7 @@ class DjAiPlannerTest {
         assertEquals(DjAiFailure.OUTPUT_LIMIT, decodeDjAiReply(reply(null, "length"), DjAiProvider.OPENROUTER, allowed, 4).failure)
         assertEquals(DjAiFailure.INVALID_RESPONSE, decodeDjAiReply(DjAiReply(200, "not json"), DjAiProvider.OPENROUTER, allowed, 4).failure)
         assertEquals(DjAiFailure.INVALID_PLAN, decodeDjAiReply(reply("""{"track_ids":["invented"]}"""), DjAiProvider.OPENROUTER, allowed, 4).failure)
-        assertEquals(listOf("d", "a", "c", "b"), decodeDjAiReply(validReply(), DjAiProvider.OPENROUTER, allowed, 4).ids)
+        assertEquals(listOf("d", "a", "c", "b", "e", "f"), decodeDjAiReply(validReply(), DjAiProvider.OPENROUTER, allowed, 6).ids)
     }
 
     @Test fun acceptsGeminiEnvelopeWithoutReadingProviderMessages() {
@@ -78,7 +78,7 @@ class DjAiPlannerTest {
     @Test fun aSlowValidResponseCanFinishBeforeTheNewDeadline() = runTest {
         val session = configured()
         val planner = DjAiPlanner(session, DjAiTransport { _, _ -> delay(12_000); validReply() })
-        assertEquals(listOf("d", "a", "c", "b"), planner.order(allowed.map(::track))?.map { it.id })
+        assertEquals(listOf("d", "a", "c", "b", "e", "f"), planner.order(allowed.map(::track))?.map { it.id })
         assertEquals(DjAiStatus.READY, session.uiState.value.status)
         assertNull(session.uiState.value.failure)
     }
@@ -145,7 +145,16 @@ class DjAiPlannerTest {
         assertEquals("", session.uiState.value.apiKey)
         assertEquals("", session.uiState.value.model)
         session.clear()
-        assertFalse(session.uiState.value.enabled)
+        assertTrue(session.uiState.value.enabled)
         assertEquals("", session.uiState.value.apiKey)
+    }
+
+    @Test fun fewerThanSixDistinctCandidatesNeverProducesAShortSet() = runTest {
+        val session = configured()
+        var calls = 0
+        val planner = DjAiPlanner(session, DjAiTransport { _, _ -> calls++; validReply() })
+        assertNull(planner.order(allowed.take(5).map(::track)))
+        assertEquals(DjAiFailure.NO_CANDIDATES, session.uiState.value.failure)
+        assertEquals(0, calls)
     }
 }

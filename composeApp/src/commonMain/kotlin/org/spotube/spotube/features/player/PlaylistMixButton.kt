@@ -17,6 +17,6 @@ fun PlaylistMixButton(playlistId: String,
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     MixCapsuleButton(onClick = viewModel::toggle, enabled = state.available, selected = state.enabled) {
         MillenniumIcon(FeatherIcons.Sliders, contentDescription = null)
-        Text(stringResource(if (state.enabled) Res.string.mix_action_enabled else Res.string.mix_action))
+        Text(stringResource(when { state.playing -> Res.string.mix_action_playing; state.enabled -> Res.string.mix_action_enabled; else -> Res.string.mix_action }))
     }
 }

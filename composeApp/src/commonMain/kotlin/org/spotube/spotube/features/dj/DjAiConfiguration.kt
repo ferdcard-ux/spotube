@@ -36,7 +36,7 @@ fun DjAiConfiguration(viewModel: DjAiViewModel = koinViewModel()) {
             MillenniumSwitch(checked = state.enabled, onCheckedChange = viewModel::enable, contentSpacing = 0.dp)
         }
         Text(stringResource(Res.string.dj_ai_disclosure))
-        if (state.enabled) {
+        if (state.enabled && state.storageReady) {
             DjAiProvider.entries.forEach { provider ->
                 MillenniumButton(onClick = { viewModel.provider(provider) },
                     style = if (state.provider == provider) MillenniumButtonStyle.Primary else MillenniumButtonStyle.Secondary) {
@@ -51,6 +51,11 @@ fun DjAiConfiguration(viewModel: DjAiViewModel = koinViewModel()) {
             DjAiTextField(state.apiKey, viewModel::key, stringResource(Res.string.dj_ai_key), password = true)
             DjAiTextField(state.request, viewModel::request, stringResource(Res.string.dj_ai_request))
             Text(stringResource(Res.string.dj_ai_session_only))
+            Text(stringResource(when {
+                state.storageError -> Res.string.dj_ai_storage_error
+                state.storageSaved -> Res.string.dj_ai_storage_saved
+                else -> Res.string.dj_ai_storage_pending
+            }))
             Text(stringResource(when (state.status) {
                 DjAiStatus.IDLE -> Res.string.dj_ai_idle
                 DjAiStatus.PLANNING -> Res.string.dj_ai_planning
@@ -78,10 +83,9 @@ fun DjAiConfiguration(viewModel: DjAiViewModel = koinViewModel()) {
                 }))
             }
             state.httpStatus?.let { Text(stringResource(Res.string.dj_ai_http_status, it)) }
-            MillenniumButton(onClick = viewModel::retry, enabled = state.canRetry) {
-                Text(stringResource(Res.string.dj_ai_retry))
+            MillenniumButton(onClick = viewModel::save) {
+                Text(stringResource(Res.string.dj_ai_save))
             }
-            Text(stringResource(Res.string.dj_ai_retry_hint))
             MillenniumButton(onClick = viewModel::clear, style = MillenniumButtonStyle.Secondary) {
                 Text(stringResource(Res.string.dj_ai_clear))
             }

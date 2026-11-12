@@ -58,6 +58,7 @@ class DeviceAudioPlayerQueue(
     private val currentCollectionEntryState = MutableStateFlow<QueueCollectionEntry?>(null)
     private val collectionHistoryState = MutableStateFlow<List<QueueCollectionEntry>>(emptyList())
 
+    private val queueGeneration = MutableStateFlow(0L)
     private var isRestoringPersistedState = true
 
     // Eagerly: callers read `.value` (the stream proxy looks up the track it's asked to play,
@@ -140,7 +141,11 @@ class DeviceAudioPlayerQueue(
         startPosition: Int,
         collectionEntry: QueueCollectionEntry?) {
         logger.i { "Loading queue with ${entries.size} entries, autoPlay=$autoPlay, startPosition=$startPosition" }
+        queueGeneration.update { it + 1 }
         val resolved = resolveMediaItems(entries)
+        if (collectionEntry is QueueCollectionEntry.DjSet) {
+            require(resolved.map { it.first.url }.distinct().size >= org.spotube.spotube.features.dj.DJ_SET_SIZE) { "Incomplete DJ set" }
+        }
         val mediaItems = resolved.map { it.first }
         if (mediaItems.isEmpty()) {
             logger.w { "load: no valid media items after filtering blanks" }
@@ -173,12 +178,14 @@ class DeviceAudioPlayerQueue(
             return
         }
 
+        val appendGeneration = queueGeneration.value
         logger.i { "Adding ${entries.size} entries to queue" }
         val mediaItems = entries.mapNotNull { it.toMediaItem() }
         if (mediaItems.isEmpty()) {
             logger.w { "addAllToQueue: all entries had blank urls, skipping" }
             return
         }
+        if (appendGeneration != queueGeneration.value) return
         val validEntries = entries.zip(mediaItems).map { (entry) ->
             entry
         }
@@ -189,6 +196,7 @@ class DeviceAudioPlayerQueue(
         updateCollectionContext(collectionEntry)
 
         mediaItems.forEach { mediaItem ->
+            if (appendGeneration != queueGeneration.value) return
             audioPlayer.addMediaItem(mediaItem)
         }
 
@@ -290,6 +298,7 @@ class DeviceAudioPlayerQueue(
     }
 
     override suspend fun clear() {
+        queueGeneration.update { it + 1 }
         logger.i { "Clearing queue and collection history" }
         (audioPlayer as? org.spotube.spotube.features.player.TransitionAudioPlayer)?.playlistContext = false
         entryByMediaUrl.value = emptyMap()
@@ -332,9 +341,7 @@ class DeviceAudioPlayerQueue(
 
         val settings = settingsProvider.settingsState.value ?: return
         // El DJ administra sus propios bloques; endless no debe insertar otro lote en paralelo.
-        if (settings.djMode &&
-            (audioPlayer as? org.spotube.spotube.features.player.TransitionAudioPlayer)
-                ?.synchronizedPlaybackFlow?.value != true) return
+        if (currentCollectionEntryState.value is QueueCollectionEntry.DjSet) return
         if (!settings.enableEndlessPlayback) return
 
         val queue = queueFlow.value
@@ -351,6 +358,7 @@ class DeviceAudioPlayerQueue(
         val seedTrackIds = seedTracks.map { it.track.id }
         if (seedTrackIds.isEmpty()) return
 
+        val requestGeneration = queueGeneration.value
         isFetchingRecommendations = true
         logger.i { "Endless playback: fetching recommendations with ${seedTrackIds.size} seed tracks" }
 
@@ -391,6 +399,7 @@ class DeviceAudioPlayerQueue(
             }
 
             logger.i { "Endless playback: adding ${newEntries.size} recommended tracks to queue" }
+            if (requestGeneration != queueGeneration.value || currentCollectionEntryState.value is QueueCollectionEntry.DjSet) return
             addAllToQueue(newEntries)
         } catch (e: Exception) {
             logger.e(e) { "Endless playback: failed to fetch recommendations" }
@@ -409,7 +418,7 @@ class DeviceAudioPlayerQueue(
         logger.i { "Restoring persisted state with ${state.entries.size} entries, currentIndex=${state.currentIndex}" }
         currentCollectionEntryState.value = state.currentCollectionEntry
         (audioPlayer as? org.spotube.spotube.features.player.TransitionAudioPlayer)?.playlistContext =
-            state.currentCollectionEntry is QueueCollectionEntry.Playlist
+            (state.currentCollectionEntry is QueueCollectionEntry.Playlist || state.currentCollectionEntry is QueueCollectionEntry.SavedTracks)
         collectionHistoryState.value = state.collectionHistory.ifEmpty {
             state.currentCollectionEntry?.let(::listOf) ?: emptyList()
         }
@@ -510,7 +519,7 @@ class DeviceAudioPlayerQueue(
 
     private fun updateCollectionContext(collectionEntry: QueueCollectionEntry?) {
         (audioPlayer as? org.spotube.spotube.features.player.TransitionAudioPlayer)?.playlistContext =
-            collectionEntry is QueueCollectionEntry.Playlist
+            (collectionEntry is QueueCollectionEntry.Playlist || collectionEntry is QueueCollectionEntry.SavedTracks)
         if (collectionEntry != null) {
             logger.d { "Updating collection context: ${collectionEntry.id}" }
         } else {

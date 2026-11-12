@@ -75,6 +75,14 @@ class SettingsRepository(private val database: Database) : UserSettingsStore {
         }
     }
 
+    /** Actualiza campos sobre el valor persistido, sin sobrescribir cambios concurrentes. */
+    suspend fun mutateSettings(transform: (UserSettings) -> UserSettings) {
+        database.settingsDataStore.edit { prefs ->
+            val current = prefs[SETTINGS_KEY]?.let { settingsJson.decodeFromString<UserSettings>(it) } ?: UserSettings()
+            prefs[SETTINGS_KEY] = settingsJson.encodeToString(transform(current))
+        }
+    }
+
     suspend fun getCurrentSettings(): UserSettings {
         val preferences = database.settingsDataStore.data.first()
         val storedJson = preferences[SETTINGS_KEY] ?: return UserSettings()
