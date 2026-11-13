@@ -1555,6 +1555,37 @@ Completar la evolución del reproductor Nightly antes de preparar una Release: s
 
 ---
 
+## 32. DJ — precarga de sets y evaluación de voz neural local
+
+### Objetivo
+Eliminar la espera entre bloques consecutivos del DJ y evaluar una alternativa neural, local y sin servicios de pago para sustituir la voz TTS nativa de Android.
+
+### Implementación
+- **Precarga del siguiente set:** `DjService` separa la preparación de un bloque (`PreparedDjSet`) de su carga en la cola. Tras cargar el set activo, genera en segundo plano las seis o más pistas, el orden y los dos diálogos del siguiente set.
+- **Relevo inmediato:** al finalizar la despedida, el DJ consume el bloque precargado si está disponible. Si la preparación no terminó o falló, conserva la ruta de generación normal; un toque manual en el botón DJ cancela el bloque anticipado y solicita uno nuevo.
+- **Cancelación segura:** al desactivar DJ, entrar en una sesión Jam o cerrar el servicio, se cancelan la preparación y el bloque en memoria. Una respuesta atrasada no reemplaza una cola ajena al set actual.
+- **Piper local:** se integró `piper-kotlin` como submódulo en `third_party/piper-kotlin`, con ONNX Runtime y datos de eSpeak empaquetados para Android. Se añadió el modelo español `es_ES-sharvard-medium` durante la prueba física; sus dos voces permiten seleccionar locución masculina o femenina sin alterar el tono artificialmente.
+- **Respaldo seguro:** `DjSpeechEngine.SYSTEM` quedó como valor predeterminado. Piper sólo debe usarse tras estabilizar su backend nativo en el dispositivo objetivo.
+
+### Verificación
+- **Compilación:** `:composeApp:assembleNightlyDebug` completó correctamente con el módulo C/C++ de Piper para `arm64-v8a`.
+- **Nightly:** APK instalado como actualización en el Moto g22 mediante ADB, manteniendo los datos de la aplicación.
+- **Modelo local:** los archivos ONNX y su configuración se copiaron únicamente al directorio privado de la app para la prueba; no se versionaron ni se incluyeron en el repositorio.
+- **DJ seguro en hardware:** con el respaldo del sistema, el Moto mostró `DJ K2 está hablando`, reprodujo el guion del bloque y el proceso permaneció activo. La captura de validación confirmó la tarjeta de onda y la pista posterior.
+- **Piper en hardware:** el modelo llegó a cargar ONNX Runtime, pero al iniciar la síntesis el proceso de Nightly recibió `SIGSEGV` dentro del backend nativo. Se reprodujo el fallo dos veces. No se atribuye al selector de DJ, a Mix ni a la generación de sets.
+
+### Alcance y decisión
+- La precarga de sets queda implementada y compilada. La transición completa entre dos sets largos sigue pendiente de una prueba manual de duración real en el Moto.
+- Piper no se declara apto todavía para Nightly: activa un fallo nativo en el Moto g22. Por estabilidad se mantiene el TTS del sistema como respaldo, aunque su calidad de voz no satisface el objetivo del DJ.
+- La siguiente iteración debe corregir o sustituir el backend de Piper en ARM64 y, después, habilitarlo como opción explícita en Ajustes. OpenVoice autoalojado permanece como alternativa opcional de calidad superior.
+- El APK de prueba creció aproximadamente de 212 MB a 346 MB al empaquetar ONNX Runtime y las bibliotecas de Piper; antes de una Release será necesario reducir ABI o hacer la descarga del motor/modelo bajo demanda.
+
+### Cambios residuales en el entorno
+- **Moto g22:** Nightly de prueba permanece instalada, con el motor de sistema como voz activa. El modelo Piper de prueba quedó en el almacenamiento privado de la app y puede eliminarse al desinstalarla o limpiar datos.
+- **Repositorio:** commit local `788fe4e7` (`feat(dj): prefetch upcoming sets and add local speech engine`). El submódulo Piper tiene su propio commit de compatibilidad con AGP 9: `0a34d36`.
+
+---
+
 ## Historial de Versiones
 
 | Fecha | Versión | Cambios |
