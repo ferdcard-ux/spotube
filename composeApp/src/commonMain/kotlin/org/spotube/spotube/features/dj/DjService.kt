@@ -51,6 +51,13 @@ data class DjUiState(
     val script: String? = null,
 )
 
+/** Un bloque ya calculado: no toca la cola hasta que llegue el relevo. */
+private data class PreparedDjSet(
+    val tracks: List<org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack>,
+    val intro: String,
+    val outro: String,
+)
+
 class DjService(
     audioPlayer: AudioPlayerInterface,
     private val queue: AudioPlayerQueue,
@@ -66,6 +73,8 @@ class DjService(
     private val state = MutableStateFlow(DjUiState())
     val uiState = state.asStateFlow()
     private var blocksJob: Job? = null
+    private var prefetchJob: Job? = null
+    private var prefetchedSet: PreparedDjSet? = null
     private var generation = 0L
     private val lifecycle = DjSetLifecycle()
 
@@ -85,7 +94,7 @@ class DjService(
                 if (state.value.enabled && lifecycle.owns(queue.currentCollectionEntryFlow.value)) {
                     // afterQueue se ejecuta como anuncio del reproductor. Se difiere un turno
                     // para no cancelar esa misma corrutina cuando la nueva cola se carga.
-                    scope.launch { yield(); startNewSet() }
+                    scope.launch { yield(); startNewSet(usePrefetched = true) }
                 }
             }
         }
@@ -97,6 +106,8 @@ class DjService(
                 if (!enabled || !available) {
                     generation++
                     blocksJob?.cancelAndJoin()
+                    prefetchJob?.cancelAndJoin()
+                    prefetchedSet = null
                     lifecycle.clear()
                     player.announcementsEnabled = false
                     player.finishAnnouncement()
@@ -140,7 +151,7 @@ class DjService(
         state.update { it.copy(speaking = true, script = script, message = null) }
         try { withTimeout(15_000) {
             val prefs = settings.userSettings.value
-            speech.speak(script, prefs.language.locale, DjSpeechOptions(prefs.djVoiceCharacter, prefs.djVoiceGender, prefs.djVoiceAccent, prefs.djVoiceExpressiveness, prefs.djVoiceSpeed))
+            speech.speak(script, prefs.language.locale, DjSpeechOptions(prefs.djVoiceCharacter, prefs.djVoiceGender, prefs.djVoiceAccent, prefs.djVoiceExpressiveness, prefs.djVoiceSpeed, prefs.djSpeechEngine))
         } }
         catch (cancelled: CancellationException) {
             if (cancelled !is TimeoutCancellationException) throw cancelled
@@ -153,7 +164,13 @@ class DjService(
     }
 
     /** Cada toque sustituye la petición anterior; una respuesta atrasada nunca reemplaza el set nuevo. */
-    fun startNewSet() {
+    fun startNewSet() = startNewSet(usePrefetched = false)
+
+    /**
+     * El toque del usuario descarta el relevo anticipado para pedir un set realmente nuevo.
+     * El final natural del set, en cambio, consume el bloque ya preparado en memoria.
+     */
+    private fun startNewSet(usePrefetched: Boolean) {
         if (!state.value.enabled || !state.value.available) {
             scope.launch {
                 val message = getString(Res.string.dj_enable_in_settings)
@@ -164,49 +181,25 @@ class DjService(
         val previous = blocksJob
         val token = ++generation
         previous?.cancel()
+        if (!usePrefetched) {
+            prefetchJob?.cancel()
+            prefetchedSet = null
+        }
         blocksJob = scope.launch {
             previous?.join()
             player.finishAnnouncement()
             state.update { it.copy(loading = true, message = null) }
             try {
-                val recent = history.recent()
-                val candidates = collectCandidates(recent)
-                val blockedTracks = blacklist.blacklistedTracks.first().map { it.id }.toSet()
-                val blockedArtists = blacklist.blacklistedArtists.first().map { it.id }.toSet()
-                val favorites = recent.flatMap { it.artists }.groupingBy { it }.eachCount()
-                val genre = recent.mapNotNull { it.genre }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
-                val eligible = candidates.distinctBy { it.id }.filter { track ->
-                    track.id !in blockedTracks && track.artists.none { it.id in blockedArtists }
-                }
-                val recentIds = recent.map { it.trackId }.toSet()
-                val ranked = eligible.shuffled().sortedByDescending { track ->
-                    track.artists.sumOf { favorites[it.name] ?: 0 } + if (genre != null && genre == track.genre) 2 else 0
-                }
-                // Alterna afinidad y descubrimiento; no exige historial para aprovechar playlists.
-                val familiar = ranked.filter { it.id in recentIds }
-                val discoveries = ranked.filter { it.id !in recentIds }
-                val pool = buildList {
-                    repeat(maxOf(familiar.size, discoveries.size)) { index ->
-                        discoveries.getOrNull(index)?.let(::add)
-                        familiar.getOrNull(index)?.let(::add)
-                    }
-                }
-                val currentIds = queue.queueFlow.value.filterIsInstance<QueueEntry.StreamingTrack>().map { it.track.id }.toSet()
-                val fresh = pool.filter { it.id !in currentIds }
-                val choices = artistDiversePool((fresh + pool).distinctBy { it.id })
-                val tracks = aiPlanner?.order(choices) ?: choices.take(DJ_SET_SIZE)
-                if (tracks.size < DJ_SET_SIZE) error("Insufficient DJ candidates")
+                val prepared = (if (usePrefetched) prefetchedSet.also { prefetchedSet = null } else null)
+                    ?: prepareSet(token)
                 ensureActive()
                 if (token != generation || !state.value.enabled || !state.value.available) return@launch
                 val setId = "${Clock.System.now().toEpochMilliseconds()}-$token"
-                val diverseTracks = enforceArtistDiversity(tracks, choices)
-                val dialogue = aiPlanner?.dialogue(state.value.name, diverseTracks)
-                val intro = dialogue?.first ?: DjDialogueSkill.fallbackIntro(state.value.name, diverseTracks.size, token.toInt())
-                val outro = dialogue?.second ?: DjDialogueSkill.fallbackOutro(state.value.name, token.toInt())
-                lifecycle.begin(setId, intro, outro)
+                lifecycle.begin(setId, prepared.intro, prepared.outro)
                 player.announcementsEnabled = true
                 player.loop(LoopState.NONE)
-                queue.load(diverseTracks.map { QueueEntry.StreamingTrack(it, "") }, collectionEntry = QueueCollectionEntry.DjSet(setId))
+                queue.load(prepared.tracks.map { QueueEntry.StreamingTrack(it, "") }, collectionEntry = QueueCollectionEntry.DjSet(setId))
+                schedulePrefetch(setId)
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) {
                 val message = getString(Res.string.dj_no_recommendations)
@@ -216,6 +209,53 @@ class DjService(
                 if (token == generation) state.update { it.copy(loading = false) }
             }
         }
+    }
+
+    /** Calcula el siguiente bloque mientras el actual sigue sonando, sin alterar la reproducción. */
+    private fun schedulePrefetch(setId: String) {
+        prefetchJob?.cancel()
+        prefetchJob = scope.launch {
+            val prepared = runCatching { prepareSet(generation + 1) }.getOrNull() ?: return@launch
+            if (state.value.enabled && lifecycle.owns(QueueCollectionEntry.DjSet(setId))) {
+                prefetchedSet = prepared
+            }
+        }
+    }
+
+    private suspend fun prepareSet(seed: Long): PreparedDjSet {
+        val recent = history.recent()
+        val candidates = collectCandidates(recent)
+        val blockedTracks = blacklist.blacklistedTracks.first().map { it.id }.toSet()
+        val blockedArtists = blacklist.blacklistedArtists.first().map { it.id }.toSet()
+        val favorites = recent.flatMap { it.artists }.groupingBy { it }.eachCount()
+        val genre = recent.mapNotNull { it.genre }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+        val eligible = candidates.distinctBy { it.id }.filter { track ->
+            track.id !in blockedTracks && track.artists.none { it.id in blockedArtists }
+        }
+        val recentIds = recent.map { it.trackId }.toSet()
+        val ranked = eligible.shuffled().sortedByDescending { track ->
+            track.artists.sumOf { favorites[it.name] ?: 0 } + if (genre != null && genre == track.genre) 2 else 0
+        }
+        val familiar = ranked.filter { it.id in recentIds }
+        val discoveries = ranked.filter { it.id !in recentIds }
+        val pool = buildList {
+            repeat(maxOf(familiar.size, discoveries.size)) { index ->
+                discoveries.getOrNull(index)?.let(::add)
+                familiar.getOrNull(index)?.let(::add)
+            }
+        }
+        val currentIds = queue.queueFlow.value.filterIsInstance<QueueEntry.StreamingTrack>().map { it.track.id }.toSet()
+        val fresh = pool.filter { it.id !in currentIds }
+        val choices = artistDiversePool((fresh + pool).distinctBy { it.id })
+        val ordered = aiPlanner?.order(choices) ?: choices.take(DJ_SET_SIZE)
+        if (ordered.size < DJ_SET_SIZE) error("Insufficient DJ candidates")
+        val tracks = enforceArtistDiversity(ordered, choices)
+        val dialogue = aiPlanner?.dialogue(state.value.name, tracks)
+        return PreparedDjSet(
+            tracks = tracks,
+            intro = dialogue?.first ?: DjDialogueSkill.fallbackIntro(state.value.name, tracks.size, seed.toInt()),
+            outro = dialogue?.second ?: DjDialogueSkill.fallbackOutro(state.value.name, seed.toInt()),
+        )
     }
 
     private suspend fun collectCandidates(recent: List<ListeningEntry>): List<org.spotube.plugin_interfaces.plugin_apis.metadata.track.MetadataTrack> {
@@ -243,7 +283,7 @@ class DjService(
 
     fun dismissMessage() { state.update { it.copy(message = null) } }
     fun close() {
-        scope.cancel(); speech.stop(); player.beforeTrack = null; player.afterQueue = null; player.announcementsEnabled = false
+        scope.cancel(); prefetchedSet = null; speech.stop(); player.beforeTrack = null; player.afterQueue = null; player.announcementsEnabled = false
     }
 }
 

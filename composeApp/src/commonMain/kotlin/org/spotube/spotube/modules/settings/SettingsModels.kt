@@ -38,6 +38,7 @@ enum class Theme {
 @Serializable enum class DjVoiceGender { AUTO, FEMALE, MALE, NEUTRAL }
 @Serializable enum class DjVoiceAccent { SYSTEM, COLOMBIA, MEXICO, SPAIN, ARGENTINA }
 @Serializable enum class DjVoiceExpressiveness { NATURAL, SOFT, EXPRESSIVE }
+@Serializable enum class DjSpeechEngine { PIPER_LOCAL, SYSTEM }
 
 @Serializable
 data class UserSettings(
@@ -78,6 +79,8 @@ data class UserSettings(
     val djVoiceAccent: DjVoiceAccent = DjVoiceAccent.SYSTEM,
     val djVoiceExpressiveness: DjVoiceExpressiveness = DjVoiceExpressiveness.NATURAL,
     val djVoiceSpeed: Float = 1f,
+    /** El motor del sistema es seguro por defecto; Piper se habilita sólo tras validar el modelo local. */
+    val djSpeechEngine: DjSpeechEngine = DjSpeechEngine.SYSTEM,
     // Solo preferencias locales; las claves se guardan en el almacen seguro nativo.
     val djAiEnabled: Boolean = false,
     val djAiProvider: String = "OPENROUTER",

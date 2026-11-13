@@ -2,10 +2,14 @@ package org.spotube.spotube.features.dj
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import kotlinx.coroutines.*
 import java.util.Locale
+import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -18,6 +22,8 @@ actual class NativeSpeech actual constructor(context: Any) {
     }, installedEngine(applicationContext))
 
     actual suspend fun speak(text: String, language: String, options: DjSpeechOptions): Unit = withContext(Dispatchers.Main) {
+        if (options.engine == org.spotube.spotube.modules.settings.DjSpeechEngine.PIPER_LOCAL &&
+            withContext(Dispatchers.IO) { speakWithPiper(text, options) }) return@withContext
         withTimeout(5_000) { ready.await() }
         val requestedLocale = when (options.accent) {
             org.spotube.spotube.modules.settings.DjVoiceAccent.COLOMBIA -> Locale("es", "CO")
@@ -62,6 +68,40 @@ actual class NativeSpeech actual constructor(context: Any) {
         }
     }
     actual fun stop() { tts.stop() }
+
+    /** Piper queda totalmente local; si el modelo aún no se instaló, se vuelve al motor Android. */
+    private fun speakWithPiper(text: String, options: DjSpeechOptions): Boolean = runCatching {
+        val model = File(applicationContext.filesDir, "piper/es_ES-sharvard-medium.onnx")
+        if (!model.isFile) return false
+        val data = File(applicationContext.filesDir, "espeak-ng-data")
+        if (!data.isDirectory) {
+            // El source-set apunta directamente al contenido de espeak-ng-data.
+            applicationContext.assets.list("")?.forEach { copyAssetTree(it, File(data, it)) }
+        }
+        val engine = dev.ihorshevchuk.piper.engine.PiperEngine(
+            dev.ihorshevchuk.piper.engine.PiperCreateOptions(model.absolutePath, dataDir = applicationContext.filesDir.absolutePath),
+            applicationContext.filesDir)
+        engine.use {
+            val chunks = mutableListOf<FloatArray>()
+            val voice = if (options.gender == org.spotube.spotube.modules.settings.DjVoiceGender.FEMALE) 1 else 0
+            val rate = options.speed.coerceIn(.75f, 1.35f)
+            val synthesis = it.defaultSynthesizeOptions().copy(speakerId = voice, lengthScale = (1f / rate).coerceIn(.5f, 1.5f))
+            it.synthesize(text, synthesis, onSamples = { pcm -> chunks += pcm.copyOf() })
+            if (chunks.isEmpty()) return false
+            val track = AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                .setAudioFormat(AudioFormat.Builder().setSampleRate(it.currentSampleRate.get()).setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                .setBufferSizeInBytes(chunks.sumOf { pcm -> pcm.size } * 4).setTransferMode(AudioTrack.MODE_STREAM).build()
+            try { track.play(); chunks.forEach { pcm -> track.write(pcm, 0, pcm.size, AudioTrack.WRITE_BLOCKING) }; track.stop() } finally { track.release() }
+        }
+        true
+    }.getOrDefault(false)
+
+    private fun copyAssetTree(path: String, output: File) {
+        val children = applicationContext.assets.list(path).orEmpty()
+        if (children.isEmpty()) {
+            output.parentFile?.mkdirs(); applicationContext.assets.open(path).use { input -> output.outputStream().use(input::copyTo) }
+        } else { output.mkdirs(); children.forEach { child -> copyAssetTree("$path/$child", File(output, child)) } }
+    }
 
     private fun genderScore(voice: android.speech.tts.Voice, requested: org.spotube.spotube.modules.settings.DjVoiceGender): Int {
         if (requested == org.spotube.spotube.modules.settings.DjVoiceGender.AUTO) return 0
