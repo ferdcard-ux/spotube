@@ -400,6 +400,16 @@ internal fun CompactPlayerOverlay(
     var expandedPlayerComposed by remember { mutableStateOf(false) }
     if (expandedPlayerVisible) expandedPlayerComposed = true
 
+    // Con el reproductor expandido, Atrás lo minimiza en lugar de salir de la pantalla o de la app.
+    val sheetExpanded by remember(sheetState) {
+        derivedStateOf { sheetState.targetDetent == SheetDetent.FullyExpanded }
+    }
+    androidx.navigationevent.compose.NavigationBackHandler(
+        state = androidx.navigationevent.compose.rememberNavigationEventState(
+            currentInfo = androidx.navigationevent.NavigationEventInfo.None),
+        isBackEnabled = sheetExpanded,
+        onBackCompleted = { scope.launch { sheetState.animateTo(partialDetent) } })
+
     Box(modifier = Modifier.fillMaxSize()) {
         content()
 
@@ -428,7 +438,13 @@ internal fun CompactPlayerOverlay(
                                 .zeroSizeUnless(floatingPlayerVisible)
                                 .graphicsLayer {
                                     alpha = viewModel.floatingPlayerAlpha(progress)
-                                })
+                                }
+                                // Un toque expande el reproductor, igual que deslizarlo hacia arriba.
+                                // Los botones internos (reproducir, favorito) consumen su propio toque.
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { scope.launch { sheetState.animateTo(SheetDetent.FullyExpanded) } }))
                     }
                 }
             }

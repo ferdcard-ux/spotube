@@ -128,10 +128,11 @@ fun PlayableListTile(
                         }
                     }
                     if (onPlay != null) {
-                        MillenniumIconButton(
+                        org.spotube.spotube.features.player.ChromeIconButton(
                             onClick = onPlay,
                             loading = playLoading,
-                            modifier = Modifier.size(if (compact) 32.dp else 40.dp),
+                            active = isPlaying,
+                            size = if (compact) 32.dp else 40.dp,
                             style = MillenniumIconButtonStyle.Primary
                         ) {
                             MillenniumIcon(

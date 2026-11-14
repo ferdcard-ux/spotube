@@ -156,12 +156,12 @@ fun PlayableCard(
                                     Spacer(modifier = Modifier.height(8.dp))
                                 }
                                 onPlay?.let {
-                                    MillenniumIconButton(
+                                    org.spotube.spotube.features.player.ChromeIconButton(
                                         onClick = onPlay,
                                         loading = playLoading,
-                                        modifier = Modifier.size(34.dp),
+                                        active = isPlaying,
+                                        size = 34.dp,
                                         style = MillenniumIconButtonStyle.Primary
-
                                     ) {
                                         MillenniumIcon(
                                             imageVector = if (isPlaying) {

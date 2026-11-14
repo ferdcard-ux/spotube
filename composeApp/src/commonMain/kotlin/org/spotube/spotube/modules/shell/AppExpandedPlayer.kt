@@ -596,6 +596,7 @@ fun AppExpandedPlayer(
                     org.spotube.spotube.features.player.ChromeIconButton(
                         onClick = ::onShuffleToggle,
                         enabled = !isJamGuest,
+                        active = playerUiState.isShuffling,
                         style = MillenniumIconButtonStyle.Quiet
                     ) {
                         MillenniumIcon(
@@ -636,6 +637,7 @@ fun AppExpandedPlayer(
                     org.spotube.spotube.features.player.ChromeIconButton(
                         onClick = ::onLoopToggle,
                         enabled = !isJamGuest,
+                        active = playerUiState.loopState != LoopState.NONE,
                         style = MillenniumIconButtonStyle.Quiet
                     ) {
                         MillenniumIcon(

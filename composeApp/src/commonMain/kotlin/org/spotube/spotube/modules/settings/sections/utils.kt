@@ -18,6 +18,7 @@
 package org.spotube.spotube.modules.settings.sections
 
 
+import androidx.compose.ui.graphics.RectangleShape
 import org.spotube.millennium.composables.MillenniumIcon
 import org.spotube.millennium.composables.MillenniumSeparator
 import org.spotube.millennium.theme.MillenniumTheme
@@ -195,25 +196,33 @@ internal fun normalizePath(path: String): String {
 
 internal fun LazyListScope.settingsSectionCard(
     items: List<@Composable () -> Unit>) {
-    item {
+    // Un elemento de la lista por tarjeta: una sección larga (Reproducción tiene decenas de
+    // ajustes) ya no se compone ni se mide de golpe al abrir o al desplazar, y un cambio de
+    // ajuste sólo recompone las tarjetas visibles. La forma de cada fila reconstruye el panel.
+    val rows = items
+    val last = rows.lastIndex
+    this.items(count = rows.size) { index ->
+        val radius = 12.dp
+        val shape = when {
+            last == 0 -> RoundedCornerShape(radius)
+            index == 0 -> RoundedCornerShape(topStart = radius, topEnd = radius)
+            index == last -> RoundedCornerShape(bottomStart = radius, bottomEnd = radius)
+            else -> RectangleShape
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .padding(horizontal = 8.dp)
+                .padding(top = if (index == 0) 4.dp else 0.dp, bottom = if (index == last) 4.dp else 0.dp)
                 .millenniumSurface(
                     background = millenniumPanelBrush(MillenniumTheme.colors),
-                    shape = AppTheme.shapes.medium,
+                    shape = shape,
                     borderColor = MillenniumTheme.colors.border,
                     borderWidth = 1.dp,
-                    shadowElevation = 6.dp)
-                .padding(top = 4.dp, bottom = 4.dp)
+                    shadowElevation = 0.dp)
+                .padding(top = if (index == 0) 4.dp else 0.dp, bottom = if (index == last) 4.dp else 0.dp)
         ) {
-            items.forEachIndexed { index, content ->
-                if (index > 0) {
-                    MillenniumSeparator()
-                }
-                content()
-            }
+            rows[index]()
         }
     }
 }
