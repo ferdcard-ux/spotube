@@ -8,20 +8,36 @@ import org.spotube.spotube.core.audioplayer.*
 import org.spotube.spotube.modules.settings.UserSettingsSource
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 /** Dos motores nativos; la cola pública es independiente del búfer de cada motor. */
 class TransitionAudioPlayer(
     first: AudioPlayerInterface,
     private val createDeck: () -> AudioPlayerInterface,
     private val settings: UserSettingsSource,
+    /** Reloj monótono en ms; las pruebas lo sustituyen. */
+    private val nowMs: () -> Long = { MONOTONIC_START.elapsedNow().inWholeMilliseconds },
 ) : AudioPlayerInterface {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val log = co.touchlab.kermit.Logger.withTag("Transition")
+    private var lastFadeLog = -1
     private val mutex = Mutex()
     private val active = MutableStateFlow(first)
     val activeDeck: StateFlow<AudioPlayerInterface> = active.asStateFlow()
     private var standby: AudioPlayerInterface? = null
     private var prepared: MediaItem? = null
     private var fading = false
+    /** Sin fundido: la siguiente ya arrancó y la saliente termina sus últimos milisegundos. */
+    private var handoff = false
+    private var handoffAt = 0L
+    /** La precarga falló (error del motor en espera); se reintenta con espera entre intentos. */
+    @Volatile private var standbyFailed = false
+    private var preloadAttempts = 0
+    private var retryAfter = 0L
+    /** Última posición informada por cada motor y cuándo cambió, para estimar la real entre informes. */
+    private class DeckClock(var position: Duration, var mark: Long)
+    private val clocks = HashMap<AudioPlayerInterface, DeckClock>()
     private var announcementJob: Job? = null
     private var fadeDuration = Duration.ZERO
     private var incomingStart = Duration.ZERO
@@ -77,6 +93,29 @@ class TransitionAudioPlayer(
         scope.launch {
             active.collectLatest { deck -> deck.errorFlow.collect { errors.emit(it) } }
         }
+        watchStandbyErrors(first)
+    }
+
+    /** Un error del motor que no suena es un fallo de precarga: se marca para reintentarla. */
+    private fun watchStandbyErrors(deck: AudioPlayerInterface) {
+        scope.launch { deck.errorFlow.collect { if (deck !== active.value) standbyFailed = true } }
+    }
+
+    /**
+     * Algunos motores (ExoPlayer en Android) informan la posición cada 250 ms. Para detectar el
+     * final con precisión se extrapola desde el último informe mientras suena, con un tope.
+     */
+    private fun estimatedPosition(deck: AudioPlayerInterface): Duration {
+        val reported = deck.positionFlow.value
+        val now = nowMs()
+        val clock = clocks.getOrPut(deck) { DeckClock(reported, now) }
+        if (reported != clock.position) {
+            clock.position = reported; clock.mark = now
+            return reported
+        }
+        if (deck.playerStateFlow.value != PlayerState.PLAYING) { clock.mark = now; return reported }
+        val elapsed = (now - clock.mark).coerceIn(0, MAX_EXTRAPOLATION_MS)
+        return reported + (elapsed * deck.playbackSpeedFlow.value.toDouble()).milliseconds
     }
 
     private fun nextIndex(): Int? = when {
@@ -101,13 +140,26 @@ class TransitionAudioPlayer(
                 if (kotlin.math.abs(restored - 1f) < 0.0001f) recoveringTempo = null
             } else recoveringTempo = null
         }
+        if (handoff) {
+            val outgoingEnded = deck.playerStateFlow.value == PlayerState.COMPLETED ||
+                (duration.isFinite() && duration > Duration.ZERO && estimatedPosition(deck) >= duration)
+            if (outgoingEnded || nowMs() - handoffAt >= GAPLESS_LEAD_MS + HANDOFF_GRACE_MS) promote()
+            return
+        }
         if (fading) {
             // El reloj del audio entrante se detiene con pause y no avanza durante buffering.
-            val elapsed = (standby!!.positionFlow.value - incomingStart) * fadeClockRatio
+            // Posición estimada entre informes: el volumen avanza en cada ciclo (20 ms), no a saltos de 250 ms.
+            val elapsed = (estimatedPosition(standby!!) - incomingStart).coerceAtLeast(Duration.ZERO) * fadeClockRatio
             val progress = (elapsed / fadeDuration).toFloat().coerceIn(0f, 1f)
             val (a, b) = crossfadeGains(progress, fadeCurve)
             deck.setVolume(volumeFlow.value * a)
             standby!!.setVolume(volumeFlow.value * b)
+            val step = (progress * 10).toInt()
+            if (step != lastFadeLog) {
+                lastFadeLog = step
+                log.i { "fade progress=${(progress * 100).toInt()}% out=${(a * 1000).toInt() / 1000f} in=${(b * 1000).toInt() / 1000f} " +
+                    "master=${volumeFlow.value} inPos=${standby!!.positionFlow.value.inWholeMilliseconds} outPos=${deck.positionFlow.value.inWholeMilliseconds}" }
+            }
             if (progress >= 1f || deck.playerStateFlow.value == PlayerState.COMPLETED) promote()
             return
         }
@@ -137,10 +189,18 @@ class TransitionAudioPlayer(
             if (deck.playerStateFlow.value == PlayerState.COMPLETED) start(next, true)
             return
         }
-        val remaining = duration - position
-        val preloadMs = maxOf(5_000L, length.inWholeMilliseconds + 5_000L)
-        if ((prefs.gaplessEnabled || seconds > 0) && remaining <= preloadMs.milliseconds && prepared != item) {
-            val buffer = standby ?: createDeck().also { standby = it }
+        val remaining = duration - estimatedPosition(deck)
+        // Precarga a partir del primer minuto: resolver el audio y llenar el búfer lleva varios
+        // segundos. En pistas cortas se conserva la ventana mínima antes del fundido.
+        val fallbackWindow = maxOf(5_000L, length.inWholeMilliseconds + 5_000L).milliseconds
+        val preloadDue = position >= PRELOAD_AFTER || remaining <= fallbackWindow
+        val retryDue = prepared == item && standbyFailed && preloadAttempts < MAX_PRELOAD_ATTEMPTS && nowMs() >= retryAfter
+        if ((prefs.gaplessEnabled || seconds > 0) && preloadDue && (prepared != item || retryDue)) {
+            val buffer = standby ?: createDeck().also { standby = it; watchStandbyErrors(it) }
+            if (prepared != item) preloadAttempts = 0
+            standbyFailed = false
+            preloadAttempts++
+            retryAfter = nowMs() + PRELOAD_RETRY_DELAY_MS
             buffer.setVolume(0f)
             buffer.prepareForTransition(item)
             buffer.setPlaybackSpeed(playbackSpeedFlow.value * plan.tempoRatio)
@@ -149,9 +209,12 @@ class TransitionAudioPlayer(
             }
             prepared = item
         }
+        // Un motor en espera que falló (o quedó inactivo) no se promociona: se carga de nuevo.
+        val standbyUsable = prepared == item && !standbyFailed &&
+            standby?.playerStateFlow?.value.let { it != null && it != PlayerState.IDLE }
         val ended = deck.playerStateFlow.value == PlayerState.COMPLETED || remaining <= Duration.ZERO
         if (ended) {
-            if (prepared == item && !announcementsEnabled) {
+            if (standbyUsable && !announcementsEnabled) {
                 standby!!.setVolume(volumeFlow.value)
                 standby!!.play()
                 promote()
@@ -166,8 +229,18 @@ class TransitionAudioPlayer(
             (offset + kotlin.math.ceil(((duration - length).inWholeMilliseconds - offset) / beatMs) * beatMs)
                 .toLong().milliseconds
         } else duration - length
-        val ready = standby?.playerStateFlow?.value in listOf(PlayerState.READY, PlayerState.PAUSED)
-        if (seconds > 0 && prepared == item && ready && position >= beatAlignedStart &&
+        val ready = standbyUsable && standby?.playerStateFlow?.value in listOf(PlayerState.READY, PlayerState.PAUSED)
+        // Sin pausas: la siguiente arranca unos milisegundos antes del final para cubrir lo que
+        // tarda el motor en sacar audio; la saliente termina sola y después se promociona.
+        if (seconds == 0 && prefs.gaplessEnabled && ready && !announcementsEnabled &&
+            remaining <= GAPLESS_LEAD_MS.milliseconds && deck.playerStateFlow.value == PlayerState.PLAYING) {
+            standby!!.setVolume(volumeFlow.value)
+            standby!!.play()
+            handoff = true
+            handoffAt = nowMs()
+            return
+        }
+        if (seconds > 0 && prepared == item && ready && estimatedPosition(deck) >= beatAlignedStart &&
             deck.playerStateFlow.value == PlayerState.PLAYING) {
             // Algunos motores aceptan el tempo solo cuando el medio ya está preparado.
             standby!!.setPlaybackSpeed(deck.playbackSpeedFlow.value * plan.tempoRatio)
@@ -179,11 +252,15 @@ class TransitionAudioPlayer(
             fadeClockRatio = deck.playbackSpeedFlow.value.toDouble() / standby!!.playbackSpeedFlow.value
             standby!!.play()
             fading = true
+            lastFadeLog = -1
+            log.i { "fade start curve=$fadeCurve length=${fadeDuration.inWholeMilliseconds}ms configured=${length.inWholeMilliseconds}ms " +
+                "plan=$plan bpm=${current?.bpm}->${item.bpm} mix=${playlistMixOverride ?: prefs.autoMixEnabled} playlist=$playlistContext" }
         }
     }
 
     private suspend fun promote() {
         val next = nextIndex() ?: return
+        log.i { "promote fading=$fading handoff=$handoff" }
         val old = active.value
         val incomingRatio = standby!!.playbackSpeedFlow.value / playbackSpeedFlow.value
         active.value = standby!!
@@ -198,12 +275,19 @@ class TransitionAudioPlayer(
         if (recoveringTempo == null) active.value.setPlaybackSpeed(playbackSpeedFlow.value)
         prepared = null
         fading = false
+        handoff = false
+        standbyFailed = false
+        preloadAttempts = 0
     }
 
     private suspend fun cancelTransition() {
+        if (fading || handoff) log.w { "transition cancelled mid-fade (queue change, seek or loop)" }
         standby?.stop()
         prepared = null
         fading = false
+        handoff = false
+        standbyFailed = false
+        preloadAttempts = 0
         active.value.setVolume(volumeFlow.value)
     }
 
@@ -240,13 +324,13 @@ class TransitionAudioPlayer(
         wantsPlay = true
         if (announcementJob?.isActive == true) return@withLock
         active.value.play()
-        if (fading) standby?.play()
+        if (fading || handoff) standby?.play()
     }
     override suspend fun pause() = mutex.withLock {
         wantsPlay = false
         announcementJob?.cancelAndJoin()
         active.value.pause()
-        if (fading) standby?.pause()
+        if (fading || handoff) standby?.pause()
     }
     override suspend fun stop() = mutex.withLock {
         wantsPlay = false
@@ -300,8 +384,18 @@ class TransitionAudioPlayer(
         next?.let { start(it, true) }
         Unit
     }
+    /**
+     * Como en cualquier reproductor: con la pista avanzada, el primer toque vuelve a su inicio;
+     * un segundo toque (ya en los primeros segundos) pasa a la pista anterior.
+     */
     override suspend fun skipToPrevious() = mutex.withLock {
-        if (index >= 0) start((index - 1).coerceAtLeast(0), true)
+        if (index < 0) return@withLock
+        if (active.value.positionFlow.value > REWIND_THRESHOLD || index == 0) {
+            cancelTransition()
+            recoveringTempo = null
+            active.value.setPlaybackSpeed(playbackSpeedFlow.value)
+            active.value.seekTo(Duration.ZERO)
+        } else start(index - 1, true)
     }
     override suspend fun jumpTo(index: Int) = mutex.withLock {
         if (index in playlistFlow.value.indices) start(index, true)
@@ -338,6 +432,7 @@ class TransitionAudioPlayer(
     override suspend fun setVolume(volume: Float) = mutex.withLock {
         volumeFlow.value = volume.coerceIn(0f, 1f)
         if (!fading) active.value.setVolume(volumeFlow.value)
+        if (handoff) standby?.setVolume(volumeFlow.value)
     }
     override suspend fun setPlaybackSpeed(speed: Float) = mutex.withLock {
         recoveringTempo = null
@@ -355,3 +450,15 @@ class TransitionAudioPlayer(
         standby?.dispose()
     }
 }
+
+/** Inicio de la precarga de la siguiente pista, contado desde el principio de la actual. */
+internal val PRELOAD_AFTER = 60.seconds
+internal const val MAX_PRELOAD_ATTEMPTS = 3
+/** Pasado este punto, «Anterior» rebobina la pista actual en lugar de retroceder. */
+internal val REWIND_THRESHOLD = 3.seconds
+internal const val PRELOAD_RETRY_DELAY_MS = 3_000L
+/** Anticipo con que arranca la siguiente pista sin fundido (latencia de salida del motor). */
+internal const val GAPLESS_LEAD_MS = 150L
+private const val HANDOFF_GRACE_MS = 250L
+private const val MAX_EXTRAPOLATION_MS = 300L
+private val MONOTONIC_START = TimeSource.Monotonic.markNow()

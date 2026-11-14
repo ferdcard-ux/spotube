@@ -7,6 +7,7 @@ import org.spotube.spotube.core.audioplayer.*
 import org.spotube.spotube.modules.settings.*
 import kotlin.test.*
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -27,7 +28,9 @@ class TransitionAudioPlayerTest {
         override suspend fun play() { playerStateFlow.value = PlayerState.PLAYING }
         override suspend fun pause() { playerStateFlow.value = PlayerState.PAUSED }
         override suspend fun stop() { playerStateFlow.value = PlayerState.IDLE; positionFlow.value = Duration.ZERO }
+        var loads = 0
         override suspend fun load(playlist: List<MediaItem>, autoPlay: Boolean, startPosition: Int) {
+            loads++
             playlistFlow.value = playlist
             currentMediaItemFlow.value = playlist.getOrNull(startPosition)
             durationFlow.value = currentMediaItemFlow.value?.duration ?: Duration.ZERO
@@ -249,7 +252,7 @@ class TransitionAudioPlayerTest {
         val player = TransitionAudioPlayer(deck, { Deck() }, settings)
         val lifecycle = org.spotube.spotube.features.dj.DjSetLifecycle()
         var collection: QueueCollectionEntry = QueueCollectionEntry.DjSet("set-one")
-        lifecycle.begin(collection.id)
+        lifecycle.begin(collection.id, "intro", "outro")
         var introductions = 0
         var endings = 0
         player.beforeTrack = { if (lifecycle.introduction(collection)) introductions++ }
@@ -275,10 +278,110 @@ class TransitionAudioPlayerTest {
             advanceTimeBy(100); runCurrent()
             assertEquals(1, endings)
             collection = QueueCollectionEntry.DjSet("set-two")
-            lifecycle.begin(collection.id)
+            lifecycle.begin(collection.id, "intro", "outro")
             player.load((1..6).map { track("new-$it") }, true, 0)
             runCurrent()
             assertEquals(2, introductions)
+        } finally { player.dispose(); Dispatchers.resetMain() }
+    }
+
+    private fun player(a: Deck, b: Deck, settings: UserSettings, scope: TestScope) = TransitionAudioPlayer(
+        a, { b }, object : UserSettingsSource { override val userSettings = MutableStateFlow(settings) },
+        nowMs = { scope.testScheduler.currentTime })
+
+    @Test fun longTracksPreloadTheNextOneAfterTheFirstMinute() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val a = Deck(); val b = Deck()
+        val player = player(a, b, UserSettings(crossfadeSeconds = 10), this)
+        try {
+            val tracks = listOf(track("one").copy(duration = 290.seconds), track("two").copy(duration = 200.seconds))
+            player.load(tracks, true, 0)
+            a.positionFlow.value = 59.seconds
+            advanceTimeBy(25); runCurrent()
+            assertNull(b.currentMediaItemFlow.value)
+            a.positionFlow.value = 60.seconds
+            advanceTimeBy(25); runCurrent()
+            assertEquals(tracks[1], b.currentMediaItemFlow.value)
+            assertEquals(PlayerState.READY, b.playerStateFlow.value)
+            // El fundido empieza exactamente 10 s antes del final, no cuando la precarga termina.
+            a.positionFlow.value = 279.9.seconds
+            advanceTimeBy(25); runCurrent()
+            assertEquals(PlayerState.READY, b.playerStateFlow.value)
+            a.positionFlow.value = 280.seconds
+            advanceTimeBy(25); runCurrent()
+            assertEquals(PlayerState.PLAYING, b.playerStateFlow.value)
+        } finally { player.dispose(); Dispatchers.resetMain() }
+    }
+
+    @Test fun aFailedPreloadIsRetriedAndNeverPromoted() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val a = Deck(); val b = Deck()
+        val player = player(a, b, UserSettings(crossfadeSeconds = 0), this)
+        try {
+            val tracks = listOf(track("one").copy(duration = 120.seconds), track("two"))
+            player.load(tracks, true, 0)
+            a.positionFlow.value = 61.seconds
+            advanceTimeBy(25); runCurrent()
+            assertEquals(1, b.loads)
+            b.errorFlow.emit(IllegalStateException("stream expired"))
+            b.playerStateFlow.value = PlayerState.IDLE
+            advanceTimeBy(1_000); runCurrent()
+            assertEquals(1, b.loads)
+            advanceTimeBy(PRELOAD_RETRY_DELAY_MS); runCurrent()
+            assertEquals(2, b.loads)
+            // Si el reintento también falla y llega el final, la pista se carga de nuevo en el motor activo.
+            b.errorFlow.emit(IllegalStateException("still failing"))
+            b.playerStateFlow.value = PlayerState.IDLE
+            val loadsBefore = a.loads
+            a.positionFlow.value = 120.seconds
+            advanceTimeBy(25); runCurrent()
+            assertSame(a, player.activeDeck.value)
+            assertEquals(loadsBefore + 1, a.loads)
+            assertEquals(tracks[1], a.currentMediaItemFlow.value)
+        } finally { player.dispose(); Dispatchers.resetMain() }
+    }
+
+    @Test fun gaplessStartsTheNextTrackJustBeforeTheEnd() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val a = Deck(); val b = Deck()
+        val player = player(a, b, UserSettings(crossfadeSeconds = 0, gaplessEnabled = true), this)
+        try {
+            val tracks = listOf(track("one"), track("two"))
+            player.load(tracks, true, 0)
+            a.positionFlow.value = 25.seconds
+            advanceTimeBy(25); runCurrent()
+            assertEquals(PlayerState.READY, b.playerStateFlow.value)
+            a.positionFlow.value = 30.seconds - 100.milliseconds
+            advanceTimeBy(25); runCurrent()
+            assertEquals(PlayerState.PLAYING, b.playerStateFlow.value)
+            assertEquals(1f, b.volumeFlow.value)
+            assertSame(a, player.activeDeck.value)
+            a.playerStateFlow.value = PlayerState.COMPLETED
+            advanceTimeBy(25); runCurrent()
+            assertSame(b, player.activeDeck.value)
+            assertEquals(tracks[1], player.currentMediaItemFlow.value)
+        } finally { player.dispose(); Dispatchers.resetMain() }
+    }
+
+    @Test fun previousRewindsFirstAndGoesBackOnTheSecondTap() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val a = Deck(); val b = Deck()
+        val player = player(a, b, UserSettings(crossfadeSeconds = 0), this)
+        try {
+            val tracks = listOf(track("one"), track("two"))
+            player.load(tracks, true, 1)
+            a.positionFlow.value = 12.seconds
+            player.skipToPrevious()
+            assertEquals(Duration.ZERO, a.positionFlow.value)
+            assertEquals(tracks[1], player.currentMediaItemFlow.value)
+            a.positionFlow.value = 1.seconds
+            player.skipToPrevious()
+            assertEquals(tracks[0], player.currentMediaItemFlow.value)
+            // En la primera pista, «Anterior» sólo puede rebobinar.
+            a.positionFlow.value = 1.seconds
+            player.skipToPrevious()
+            assertEquals(tracks[0], player.currentMediaItemFlow.value)
+            assertEquals(Duration.ZERO, a.positionFlow.value)
         } finally { player.dispose(); Dispatchers.resetMain() }
     }
 }
