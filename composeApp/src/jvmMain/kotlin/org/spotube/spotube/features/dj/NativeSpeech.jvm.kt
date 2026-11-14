@@ -2,6 +2,7 @@ package org.spotube.spotube.features.dj
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.util.Base64
 
@@ -37,5 +38,38 @@ actual class NativeSpeech actual constructor(context: Any) {
         }
     }
 
-    actual fun stop() { process?.destroyForcibly(); process = null }
+    @Volatile private var line: javax.sound.sampled.SourceDataLine? = null
+
+    actual suspend fun play(clip: DjVoiceClip) = withContext(Dispatchers.IO) {
+        stop()
+        val format = javax.sound.sampled.AudioFormat(clip.sampleRate.toFloat(), 16, 1, true, false)
+        val output = javax.sound.sampled.AudioSystem.getSourceDataLine(format)
+        line = output
+        try {
+            output.open(format)
+            output.start()
+            var offset = 0
+            while (offset < clip.pcm16.size) {
+                ensureActive()
+                if (line !== output) throw kotlinx.coroutines.CancellationException("DJ voice playback stopped")
+                val count = minOf(8 * 1024, clip.pcm16.size - offset)
+                offset += output.write(clip.pcm16, offset, count).coerceAtLeast(1)
+            }
+            output.drain()
+        } finally {
+            output.close()
+            if (line === output) line = null
+        }
+    }
+
+    /** La voz del sistema operativo se lanza como proceso externo: no se puede generar por adelantado. */
+    actual suspend fun synthesize(text: String, language: String, options: DjSpeechOptions): DjVoiceClip? = null
+
+    /** El escritorio usa la voz predeterminada del sistema operativo; no se ofrece lista. */
+    actual suspend fun systemVoices(language: String): List<DjSystemVoice> = emptyList()
+
+    actual fun stop() {
+        process?.destroyForcibly(); process = null
+        line?.let { line = null; it.stop(); it.flush() }
+    }
 }

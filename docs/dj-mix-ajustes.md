@@ -6,10 +6,26 @@
 - Android usa AES-GCM y una clave no exportable de Android Keystore; los archivos cifrados están excluidos del respaldo. Windows usa DPAPI del usuario. macOS/iOS usan Keychain; Linux usa Secret Service mediante `secret-tool`, sin alternativa en texto plano.
 - La activación, el nombre y la configuración pública del DJ están en Ajustes → Reproducción. Activarlo habilita el botón inferior sin interrumpir la música actual.
 - Cada toque en DJ solicita un set nuevo de seis canciones distintas. Una petición nueva cancela la anterior. La cola se reemplaza cuando las canciones están disponibles; si no se resuelven al menos seis pistas, se conserva la cola anterior y se informa del error.
-- La voz del sistema saluda al inicio del set y se despide cuando termina la última pista. No presenta cada canción. El set termina después de la despedida; tocar DJ inicia otro.
+- La voz seleccionada saluda al inicio del set y se despide cuando termina la última pista. No presenta cada canción. El set termina después de la despedida; tocar DJ inicia otro.
 - Las candidatas provienen del historial, de las playlists guardadas, de la cola y de descubrimientos del proveedor de música. La IA opcional elige identificadores reales entre esas candidatas; no inventa canciones. Los anuncios usan plantillas verificables y la voz nativa.
 - Mix pertenece a las playlists y a Canciones favoritas. Su selección se guarda por lista. No activa DJ, no habla y no utiliza sus credenciales. Los estados distinguen Mix desactivado, activado y reproduciendo.
 - El DJ muestra preparación, reproducción y voz mediante su botón y una tarjeta de estado con ondas. El botón nunca abre configuración.
+
+## Motores de voz
+
+- **Voz del dispositivo** (Android TTS / AVSpeech / voz del sistema operativo): valor predeterminado y respaldo cuando Gemini no responde.
+- **Gemini** (en línea): voz expresiva con la clave de Gemini de la sección de IA. Se elige una de sus 30 voces o la automática; el audio se prepara por adelantado. Si falla, habla la voz del dispositivo y el aviso aparece una sola vez (5 s).
+- En «Voz del DJ» se elige la voz concreta de cada motor; la del dispositivo lista las voces instaladas en el teléfono. «Probar la voz» reproduce una muestra.
+- Piper (voz local) se retiró el 2026-11-13: sus voces sonaban mal y el motor aumentaba el APK de unos 212 MB a 346 MB.
+
+### Propuesta para OpenVoice autoalojado
+
+OpenVoice no fija un protocolo HTTP interoperable para clientes. Para mantener Spotube independiente de una implementación concreta, se propone un adaptador del servidor compatible con `POST /v1/audio/speech`:
+
+- Solicitud JSON con `input`, `voice`, `language`, `speed` y `response_format: "wav"`; respuesta de audio `audio/wav` PCM.
+- URL del servidor, voz y credencial opcional configurables por el usuario. No se enviará texto al servidor hasta que OpenVoice esté seleccionado explícitamente.
+- HTTPS por defecto; un endpoint HTTP de LAN requerirá habilitación explícita. Las credenciales se guardarán en el almacén seguro nativo.
+- Si el servidor seleccionado no responde, habla la voz del dispositivo. El contrato queda como propuesta, pendiente de confirmación antes de implementar el cliente.
 
 ## Cómo probar
 
@@ -50,9 +66,11 @@ Validación del 12 de noviembre de 2026:
 | Persistencia de activación DJ | Conservada tras actualizar y reiniciar Nightly |
 | Groq con clave real en el almacén nuevo | Selección validada y set de seis pistas generado antes y después de reiniciar Nightly; la interfaz mantuvo la clave enmascarada |
 | OpenRouter con clave real en el almacén nuevo | Pendiente: el proveedor configurado en el dispositivo durante la validación fue Groq |
+| Piper en Moto g22 (motor retirado) | Síntesis y reproducción aprobadas en `:piper` (PID separado); el proceso principal de Spotube permaneció activo durante 16,8 s |
+| Género masculino en Moto g22 (con Piper, retirado) | Android TTS con género masculino seleccionado sintetizó y reprodujo mediante Piper en `:piper` (PID separado); Spotube siguió activo (17,4 s) |
 
 APK: `composeApp/build/outputs/apk/nightly/debug/composeApp-nightly-debug.apk`.
-SHA-256: `321e645f045c66932299d6b5cc2468d33dea736c87f56cc5c17361876dc61129`.
+SHA-256 del APK actual: `4b355f2d693a678df295281e9184aa1fb6e19f1b2794d06bef752b2e83fba527`.
 Los registros y las capturas privadas de las pruebas permanecen fuera del contenido versionado.
 
 La compilación y las pruebas de iOS/macOS requieren sus plataformas correspondientes; el código de esos almacenes no se puede validar desde Windows.

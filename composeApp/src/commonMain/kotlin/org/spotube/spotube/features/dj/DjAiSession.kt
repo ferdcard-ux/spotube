@@ -103,6 +103,9 @@ class DjAiSession(
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { state.update { it.copy(storageSaved = false, storageError = true) } }
     }
+    /** Clave guardada de un proveedor, aunque no sea el seleccionado (la voz Gemini reutiliza la suya). */
+    internal fun storedKey(provider: DjAiProvider): String = keys[provider].orEmpty()
+
     /** Cerrar limpia RAM; no elimina las credenciales persistidas. */
     fun close() { scope.cancel(); keys.clear(); state.value = DjAiUiState() }
     internal fun beginRequest(): DjAiUiState = state.updateAndGet {

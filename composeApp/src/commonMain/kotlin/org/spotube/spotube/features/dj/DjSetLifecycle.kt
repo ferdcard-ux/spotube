@@ -13,7 +13,10 @@ class DjSetLifecycle {
         private set
     var outro: String? = null
         private set
-    fun begin(setId: String, intro: String, outro: String) { id = setId; introduced = false; ended = false; this.intro = intro; this.outro = outro }
+    /** [introduced] = true cuando el enlace del set anterior ya presentó este bloque. */
+    fun begin(setId: String, intro: String, outro: String, introduced: Boolean = false) {
+        id = setId; this.introduced = introduced; ended = false; this.intro = intro; this.outro = outro
+    }
     fun owns(collection: QueueCollectionEntry?) = collection is QueueCollectionEntry.DjSet && collection.id == id
     fun introduction(collection: QueueCollectionEntry?): Boolean {
         if (!owns(collection) || introduced || ended) return false

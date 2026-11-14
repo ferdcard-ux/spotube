@@ -51,6 +51,9 @@ class SettingsRepository(private val database: Database) : UserSettingsStore {
         private val settingsJson = Json {
             ignoreUnknownKeys = true
             encodeDefaults = true
+            // Un valor de enum retirado (p. ej. el motor de voz PIPER_LOCAL) vuelve a su valor
+            // por defecto en lugar de impedir que se lean todos los ajustes.
+            coerceInputValues = true
         }
     }
 

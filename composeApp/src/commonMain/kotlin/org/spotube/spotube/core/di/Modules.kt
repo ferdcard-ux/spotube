@@ -313,7 +313,10 @@ val sharedModules = module {
     single { org.spotube.spotube.features.dj.DjAiSession(get(), get()) } withOptions { onClose { it?.close() } }
     single { org.spotube.spotube.features.dj.DjAiPlanner(get(), get<HttpClientFactory>()) }
     viewModel { org.spotube.spotube.features.dj.DjAiViewModel(get()) }
-    single { org.spotube.spotube.features.dj.DjService(get(), get(), get(), get(), get(), get(), get(), get()) } withOptions {
+    viewModel { org.spotube.spotube.features.dj.DjMemoryViewModel(get()) }
+    viewModel { org.spotube.spotube.features.dj.DjVoiceViewModel(get(), get(), get()) }
+    single { org.spotube.spotube.features.dj.GeminiDjVoice(get<org.spotube.spotube.features.dj.DjAiSession>(), get<HttpClientFactory>()) }
+    single { org.spotube.spotube.features.dj.DjService(get(), get(), get(), get(), get(), get(), get(), get(), get()) } withOptions {
         createdAtStart()
         onClose { it?.close() }
     }

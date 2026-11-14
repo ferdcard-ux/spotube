@@ -125,6 +125,57 @@ internal fun LazyListScope.playbackSection(
                 onValueSaved = settingsViewModel::setDjName)
         }
         add {
+            SwitchSettingCard(
+                title = stringResource(Res.string.dj_concise_title),
+                subtitle = stringResource(Res.string.dj_concise_subtitle),
+                checked = settings.djConcise,
+                onCheckedChange = { settingsViewModel.updateSettings { copy(djConcise = it) } })
+        }
+        add {
+            TextInputSettingCard(
+                title = stringResource(Res.string.dj_personality_title),
+                subtitle = settings.djPersonality.ifBlank { stringResource(Res.string.dj_personality_subtitle) },
+                value = settings.djPersonality,
+                placeholder = stringResource(Res.string.dj_personality_placeholder),
+                normalize = { it.filterNot(Char::isISOControl).trim().take(400) },
+                onValueSaved = { value -> settingsViewModel.updateSettings { copy(djPersonality = value) } })
+        }
+        add {
+            SwitchSettingCard(
+                title = stringResource(Res.string.dj_memory_title),
+                subtitle = stringResource(Res.string.dj_memory_subtitle),
+                checked = settings.djMemoryEnabled,
+                onCheckedChange = { settingsViewModel.updateSettings { copy(djMemoryEnabled = it) } })
+        }
+        add {
+            TextInputSettingCard(
+                title = stringResource(Res.string.dj_memory_notes_title),
+                subtitle = settings.djMemoryNotes.ifBlank { stringResource(Res.string.dj_memory_notes_subtitle) },
+                value = settings.djMemoryNotes,
+                placeholder = stringResource(Res.string.dj_memory_notes_placeholder),
+                normalize = { it.filterNot(Char::isISOControl).trim().take(600) },
+                onValueSaved = { value -> settingsViewModel.updateSettings { copy(djMemoryNotes = value) } })
+        }
+        add { org.spotube.spotube.features.dj.DjMemoryConfiguration() }
+        add {
+            SelectionSettingCard(
+                title = stringResource(Res.string.dj_speech_engine_title),
+                subtitle = stringResource(when (settings.djSpeechEngine) {
+                    org.spotube.spotube.modules.settings.DjSpeechEngine.GEMINI_CLOUD -> Res.string.dj_speech_engine_gemini_subtitle
+                    org.spotube.spotube.modules.settings.DjSpeechEngine.SYSTEM -> Res.string.dj_speech_engine_system_subtitle
+                }),
+                selectedOption = settings.djSpeechEngine,
+                options = listOf(
+                    org.spotube.spotube.modules.settings.DjSpeechEngine.GEMINI_CLOUD,
+                    org.spotube.spotube.modules.settings.DjSpeechEngine.SYSTEM),
+                optionLabel = { stringResource(when (it) {
+                    org.spotube.spotube.modules.settings.DjSpeechEngine.GEMINI_CLOUD -> Res.string.dj_speech_engine_gemini
+                    org.spotube.spotube.modules.settings.DjSpeechEngine.SYSTEM -> Res.string.dj_speech_engine_system }) },
+                onOptionSelected = { settingsViewModel.updateSettings { copy(djSpeechEngine = it) } })
+        }
+        add { org.spotube.spotube.features.dj.DjVoicePicker() }
+        add { org.spotube.spotube.features.dj.DjVoicePreviewCard() }
+        add {
             SelectionSettingCard(
                 title = stringResource(Res.string.dj_voice_character_title), selectedOption = settings.djVoiceCharacter,
                 options = org.spotube.spotube.modules.settings.DjVoiceCharacter.entries.toList(),

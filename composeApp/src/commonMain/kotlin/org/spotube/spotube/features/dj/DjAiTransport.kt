@@ -22,10 +22,12 @@ internal class KtorDjAiTransport(private val clients: HttpClientFactory) : DjAiT
         }
         val body = if (gemini) buildJsonObject {
             putJsonArray("contents") { add(buildJsonObject { putJsonArray("parts") { add(buildJsonObject { put("text", prompt) }) } }) }
-            putJsonObject("generationConfig") { put("maxOutputTokens", 1024) }
+            putJsonObject("generationConfig") { put("maxOutputTokens", 2048) }
         } else buildJsonObject {
             put("model", config.model)
-            put("max_tokens", 1024)
+            // Los modelos con razonamiento (gpt-oss en Groq) gastan tokens antes de responder.
+            put("max_tokens", 2048)
+            if (config.provider == DjAiProvider.GROQ && config.model.contains("gpt-oss")) put("reasoning_effort", "low")
             if (config.provider == DjAiProvider.OPENROUTER) {
                 // El router gratuito filtra por compatibilidad con JSON cuando se solicita este formato.
                 putJsonObject("response_format") { put("type", "json_object") }

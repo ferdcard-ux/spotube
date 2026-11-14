@@ -6,6 +6,7 @@ import android.content.Intent
 import android.media.session.MediaSessionManager
 import android.os.Bundle
 import android.os.SystemClock
+import android.speech.tts.TextToSpeech
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.*
@@ -58,6 +59,35 @@ class PlaybackDeviceInstrumentation : Instrumentation() {
                 finish(Activity.RESULT_OK, summary)
             } catch (error: Throwable) {
                 summary.putString("stream", "Secure credential checks failed: ${error::class.simpleName}\n")
+                finish(Activity.RESULT_CANCELED, summary)
+            }
+            return
+        }
+        if (selected == "tts_voices") {
+            runTtsVoiceDiagnostic(summary)
+            return
+        }
+        if (selected == "dj_system_voice") {
+            // Sin tocar los ajustes: la voz del sistema dice un saludo completo de ~40 palabras.
+            val text = "Hola, hola, ¿qué tal? Soy DJ Halo, tu DJ personal. Como es sábado por la mañana, " +
+                "arrancamos con vallenato de Diomedes Díaz y un toque de reggaetón para ponerle ritmo a tu día. Dale, a escuchar."
+            try {
+                val options = DjSpeechOptions(DjVoiceCharacter.NATURAL, DjVoiceGender.AUTO,
+                    DjVoiceAccent.SYSTEM, DjVoiceExpressiveness.NATURAL, 1f, DjSpeechEngine.SYSTEM)
+                val speech = NativeSpeech(targetContext)
+                val started = SystemClock.elapsedRealtime()
+                val clip = runBlocking { speech.synthesize(text, "es", options) }
+                val synthesized = SystemClock.elapsedRealtime()
+                runBlocking {
+                    withTimeout(org.spotube.spotube.features.dj.deviceSpeechTimeoutMs(text)) {
+                        if (clip != null) speech.play(clip) else speech.speak(text, "es", options)
+                    }
+                }
+                summary.putString("stream", "System voice: ${text.split(' ').size} words, generated in ${synthesized - started} ms " +
+                    "(${clip?.durationMs ?: 0} ms of audio, boosted=${clip?.boost}), played in ${SystemClock.elapsedRealtime() - synthesized} ms.\n")
+                finish(Activity.RESULT_OK, summary)
+            } catch (error: Throwable) {
+                summary.putString("stream", "System voice failed: ${error::class.simpleName}: ${error.message}\n")
                 finish(Activity.RESULT_CANCELED, summary)
             }
             return
@@ -280,6 +310,31 @@ class PlaybackDeviceInstrumentation : Instrumentation() {
         repeat(samples) { index ->
             wav.putShort((sin(2 * PI * frequency * index / 44_100) * 4_000).toInt().toShort())
         }
+
         return File(targetContext.filesDir, name).apply { writeBytes(wav.array()) }
+    }
+
+    private fun runTtsVoiceDiagnostic(summary: Bundle) {
+        lateinit var tts: TextToSpeech
+        tts = TextToSpeech(targetContext, { status ->
+            try {
+                check(status == TextToSpeech.SUCCESS) { "Android TTS initialization failed" }
+                summary.putString(
+                    "stream",
+                    tts.voices.orEmpty()
+                        .filter { it.locale.language == "es" }
+                        .sortedBy { it.name }
+                        .joinToString(separator = "\n") {
+                            "${it.name}: locale=${it.locale}, quality=${it.quality}, features=${it.features}"
+                        }
+                )
+                finish(Activity.RESULT_OK, summary)
+            } catch (error: Throwable) {
+                summary.putString("stream", "Android TTS voice discovery failed: ${error.message}\n")
+                finish(Activity.RESULT_CANCELED, summary)
+            } finally {
+                tts.shutdown()
+            }
+        })
     }
 }

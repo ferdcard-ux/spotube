@@ -38,7 +38,7 @@ enum class Theme {
 @Serializable enum class DjVoiceGender { AUTO, FEMALE, MALE, NEUTRAL }
 @Serializable enum class DjVoiceAccent { SYSTEM, COLOMBIA, MEXICO, SPAIN, ARGENTINA }
 @Serializable enum class DjVoiceExpressiveness { NATURAL, SOFT, EXPRESSIVE }
-@Serializable enum class DjSpeechEngine { PIPER_LOCAL, SYSTEM }
+@Serializable enum class DjSpeechEngine { SYSTEM, GEMINI_CLOUD }
 
 @Serializable
 data class UserSettings(
@@ -79,8 +79,18 @@ data class UserSettings(
     val djVoiceAccent: DjVoiceAccent = DjVoiceAccent.SYSTEM,
     val djVoiceExpressiveness: DjVoiceExpressiveness = DjVoiceExpressiveness.NATURAL,
     val djVoiceSpeed: Float = 1f,
-    /** El motor del sistema es seguro por defecto; Piper se habilita sólo tras validar el modelo local. */
+    /** La voz del dispositivo es el valor por defecto y el respaldo de Gemini. */
     val djSpeechEngine: DjSpeechEngine = DjSpeechEngine.SYSTEM,
+    /** Voz concreta por motor (clave = nombre de [DjSpeechEngine]); ausente o vacía = automática. */
+    val djVoiceNames: Map<String, String> = emptyMap(),
+    /** «Menos comentarios»: el DJ sólo dice frases mínimas al iniciar y cambiar de bloque. */
+    val djConcise: Boolean = false,
+    /** Cómo habla el DJ y cómo trata al usuario (texto libre, se envía a la IA). */
+    val djPersonality: String = "",
+    /** Si la IA recibe el resumen de gustos aprendido y las notas del usuario. */
+    val djMemoryEnabled: Boolean = true,
+    /** Lo que el usuario quiere que el DJ recuerde de sus gustos. */
+    val djMemoryNotes: String = "",
     // Solo preferencias locales; las claves se guardan en el almacen seguro nativo.
     val djAiEnabled: Boolean = false,
     val djAiProvider: String = "OPENROUTER",
