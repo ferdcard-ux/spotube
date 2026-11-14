@@ -62,11 +62,3 @@ include(":composeApp")
 include(":plugin_interfaces")
 include(":js_plugin_example")
 
-// Motor neural local del DJ. Se mantiene como submódulo para conservar su JNI, eSpeak y
-// ONNX Runtime en un límite claro; no se envía texto ni audio a un servicio externo.
-includeBuild("third_party/piper-kotlin") {
-    dependencySubstitution {
-        substitute(module("dev.ihorshevchuk.piper:piper-engine")).using(project(":piper-engine"))
-        substitute(module("dev.ihorshevchuk.piper:piper-player")).using(project(":piper-player"))
-    }
-}

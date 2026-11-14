@@ -331,8 +331,6 @@ kotlin {
                 implementation(libs.media3.common)
                 implementation(libs.media3.exoplayer)
                 implementation(libs.media3.session)
-                implementation("dev.ihorshevchuk.piper:piper-engine")
-                implementation("dev.ihorshevchuk.piper:piper-player")
             }
         }
         val iosMain by creating {
@@ -377,7 +375,6 @@ kotlin {
 
 android {
     namespace = "org.spotube.spotube"
-    sourceSets.getByName("main").assets.srcDir("../third_party/piper-kotlin/third-party/espeak-ng/espeak-ng-data")
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     compileSdkMinor = libs.versions.android.compileSdkMinor.get().toInt()
 
