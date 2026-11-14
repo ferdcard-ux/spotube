@@ -1584,6 +1584,441 @@ Eliminar la espera entre bloques consecutivos del DJ y evaluar una alternativa n
 - **Moto g22:** Nightly de prueba permanece instalada, con el motor de sistema como voz activa. El modelo Piper de prueba quedó en el almacenamiento privado de la app y puede eliminarse al desinstalarla o limpiar datos.
 - **Repositorio:** commit local `788fe4e7` (`feat(dj): prefetch upcoming sets and add local speech engine`). El submódulo Piper tiene su propio commit de compatibilidad con AGP 9: `0a34d36`.
 
+### Seguimiento del 12 de noviembre: voz masculina y timeout
+- **Diagnóstico de Android TTS:** las voces españolas del Moto no exponen metadatos de género. Por ello, elegir «masculino» no seleccionaba una voz masculina real; cambiar el tono solo alteraba el pitch.
+- **Selección de voz:** cuando se elige explícitamente masculino o femenino y está instalado `es_ES-sharvard-medium`, Android enruta la locución a Piper aunque el motor preferido sea `SYSTEM`. El modelo identifica M con `speaker_id=0` y F con `speaker_id=1`. Si Piper no está disponible, se conserva Android TTS como respaldo, sin garantía de género.
+- **Causa del aviso del DJ:** `DjService.speak()` cancelaba la locución tras 15 s. En el Moto, Piper tardó entre 16,5 y 17,4 s en sintetizar y reproducir la prueba, así que el límite cancelaba una operación válida y mostraba «La voz del sistema no está disponible».
+- **Corrección:** las locuciones que pueden usar Piper ahora tienen un límite de 120 s; el TTS que no usa Piper conserva 15 s. El Piper Android se ejecuta en el proceso `:piper`, separado del proceso principal.
+- **Verificación:** `:composeApp:assembleNightlyDebug` y `:composeApp:assembleNightlyDebugAndroidTest` completaron correctamente. El caso instrumentado `tts_male` sintetizó y reprodujo en el Moto g22 mediante `:piper` (16,5 s); el proceso principal permaneció activo.
+- **Estado actualizado:** la prueba inicial de §32 detectó un cierre del backend en el proceso principal; al aislar Piper en `:piper`, la prueba posterior de síntesis y reproducción pasó. Esto no convierte el modelo en parte del APK: sigue siendo local y debe instalarse por separado. OpenVoice autoalojado continúa pendiente.
+- **APK Nightly instalado:** `composeApp/build/outputs/apk/nightly/debug/composeApp-nightly-debug.apk`. SHA-256: `4b355f2d693a678df295281e9184aa1fb6e19f1b2794d06bef752b2e83fba527`. Sin publicación Release.
+
+---
+
+## 33. DJ — Voz natural con Gemini TTS y audio preparado por adelantado
+
+### Problema
+El saludo del DJ tardaba unos 17 s en sonar con Piper y la voz del sistema (Android TTS) suena plana y artificial. El objetivo es una voz natural, expresiva y fluida que hable sin esperas.
+
+### Causa raíz
+- **Lentitud:** cada frase creaba un `PiperEngine` nuevo (lee el modelo ONNX de ~75 MB e inicia eSpeak), arrancaba el proceso `:piper` en frío y sólo reproducía cuando la síntesis había terminado por completo. La síntesis empezaba justo cuando el DJ tenía que hablar, así que toda la espera se oía.
+- **Naturalidad:** Android TTS y Piper (VITS) no tienen control de estilo: no transmiten entusiasmo, ritmo ni énfasis.
+
+### Solución
+- **Motor `GEMINI_CLOUD`** (`GeminiDjVoice.kt`): genera la voz con Gemini TTS (`gemini-2.5-flash-preview-tts`; si responde 404 prueba `gemini-2.5-flash-tts`). Recibe PCM de 16 bits a 24 kHz.
+  - **Estilo:** unas notas de dirección piden leer sólo la transcripción, con el carácter, la expresividad, el acento y el ritmo elegidos en Ajustes.
+  - **Voz:** se elige una voz prediseñada según género y carácter (por ejemplo, masculino enérgico = Fenrir, femenino cálido = Sulafat).
+  - **Clave:** reutiliza la clave de Gemini guardada en la sección de IA (almacén seguro nativo). No se registra ni se copia.
+  - **Privacidad:** sólo se envían las frases del DJ (su nombre y los títulos de las canciones), y sólo si el usuario elige este motor.
+- **Audio preparado por adelantado** (`DjService`):
+  - El saludo se sintetiza en cuanto el set está listo, mientras se resuelve y carga la primera pista.
+  - La despedida se sintetiza 45 s después del inicio del set. Hay minutos de margen y no se gasta cuota si el usuario cambia de set enseguida.
+  - El saludo del set precargado se sintetiza mientras suena la despedida del anterior.
+  - Al hablar se espera el clip como máximo 8 s; si no llegó o falló, habla la voz del dispositivo con el mismo texto.
+- **Cuota:** tras un 429 la voz en la nube descansa 10 min sin reintentar. Los fallos (sin clave, cuota, clave rechazada, servicio caído) se muestran en la tarjeta del DJ y la música sigue.
+- **Reproducción:** nuevo `NativeSpeech.play(clip)`: `AudioTrack` PCM 16 bits en Android, `SourceDataLine` en escritorio y `AVAudioPlayer` con cabecera WAV en iOS. `stop()` también la corta.
+- **Ajustes → Reproducción:** nueva tarjeta «Motor de voz del DJ» (Gemini, Piper, voz del dispositivo) con su explicación. Textos en inglés y español.
+- **Pruebas:** `GeminiDjVoiceTest` (petición, decodificación, sin clave, modelo alternativo, enfriamiento por cuota). Se actualizaron `DjSetLifecycleTest` y `TransitionAudioPlayerTest`, que ya no compilaban porque `DjSetLifecycle.begin` ahora exige intro y outro.
+
+### Verificación
+- `:composeApp:jvmTest --tests "org.spotube.spotube.features.*"`: 38 pruebas aprobadas, 0 fallos (6 nuevas de Gemini).
+- `:composeApp:assembleNightlyDebug` completó correctamente. APK: `composeApp/build/outputs/apk/nightly/debug/composeApp-nightly-debug.apk`, SHA-256 `da39ba6e8532cb30eb85e21bb891e882a6ee4a9e33b9ae5a740f82ff3509b850`.
+
+### Alcance del cambio
+- Capa compartida del DJ, reproducción en Android/escritorio/iOS, Ajustes y cadenas. Piper y Android TTS siguen disponibles como motores y como respaldo.
+- Sin instalación, commit ni publicación.
+
+### No verificado
+- **Llamada real a Gemini TTS:** no se hizo ninguna desde este equipo (requiere la clave del usuario). El formato de petición y respuesta sigue la documentación pública de Gemini; los nombres de modelo y de voces deben confirmarse en el Moto con una clave real.
+- **Latencia percibida y calidad de voz en el Moto g22:** pendientes de prueba en el dispositivo.
+- **Cuota gratuita de Gemini TTS:** no se comprobó el límite vigente. Cada set usa 2 peticiones (saludo y despedida).
+- Reproducción en escritorio (GraalVM puede requerir metadatos de `javax.sound`) e iOS: compilada sólo la parte JVM; iOS no se puede compilar desde Windows.
+
+### Cambios residuales en el entorno
+- Salidas de compilación Nightly actualizadas en `composeApp/build`. Ningún cambio en dispositivos.
+
+---
+
+## 34. DJ — Enlace entre sets, selección sin repeticiones, personalidad y memoria
+
+### Problema
+1. Al terminar un set, el DJ se despedía como si la música acabara, había un corte de ~1 s y el siguiente set empezaba con un saludo de primer set. No había continuidad.
+2. Las canciones y los artistas se repetían, incluso dentro de un mismo set.
+3. No había forma de definir la personalidad del DJ ni de que recordara los gustos y el trato del usuario.
+
+### Causa raíz
+- **Continuidad:** el cierre se escribía al preparar cada set, sin saber qué venía después, y la plantilla de reserva decía «gracias por escuchar / vuelve». El set siguiente siempre reproducía su propio saludo.
+- **Repeticiones:**
+  - La cola actual (el set anterior) entraba como candidata.
+  - Si quedaban pocas canciones nuevas, se volvían a añadir las ya sonadas.
+  - Las recomendaciones se pedían siempre con las mismas 5 semillas (las primeras del historial), así que devolvían lo mismo.
+  - El historial guardaba sólo 20 canciones y no había registro de los sets ya reproducidos.
+  - La reserva de diversidad completaba el set repitiendo artistas cuando había menos de seis distintos.
+- **Personalidad/memoria:** no existían como ajustes.
+
+### Solución
+- **Enlace entre sets** (`DjService`, `DjAiPlanner.bridge`, `DjDialogueSkill.bridgePrompt`):
+  - Al precargar el siguiente set se escribe una sola intervención que comenta lo que sonó y presenta lo que viene, sin despedirse ni volver a presentarse.
+  - Al terminar el set se dice ese enlace y el set siguiente arranca sin saludo (`DjSetLifecycle.begin(introduced = true)`).
+  - La voz de Gemini del enlace se genera cuando el siguiente set ya está listo, para que suene sin espera.
+  - Sin IA, hay un enlace de reserva que nombra artistas del bloque siguiente. El cierre de reserva ya no suena a despedida.
+- **Selección** (`DjService.prepareSet`, `DjMemory.kt`):
+  - Nunca entran canciones de la cola ni de los últimos 20 sets (`DjHistory.recordSet`).
+  - Los artistas de los dos últimos sets descansan salvo que no haya seis alternativas.
+  - Una canción por artista antes de que decida la IA (hasta 30 opciones).
+  - Fuentes variadas en paralelo: sugerencias libres de la IA (artista y título, que se buscan en el proveedor, así que nunca entran canciones inexistentes), artistas afines a los favoritos, éxitos de los favoritos, recomendaciones con semillas al azar, playlists guardadas y destacados.
+  - La IA ordena con criterio propio: transiciones de energía y género, un tercio de favoritas y el resto descubrimientos, evitando los artistas en descanso.
+  - Sin IA: dos favoritas y cuatro descubrimientos.
+  - El historial local pasa de 20 a 200 canciones y guarda los IDs de artista para buscar afines.
+- **Personalidad y memoria** (Ajustes → Reproducción):
+  - «Personalidad del DJ»: texto libre sobre cómo habla y trata al usuario.
+  - «Memoria del DJ» (interruptor, activa por defecto) y «Lo que el DJ debe recordar» (notas del usuario).
+  - Tarjeta «Lo que el DJ ha aprendido»: artistas y géneros favoritos calculados del historial, con «Olvidar lo aprendido».
+  - Con la IA activa, la personalidad, el resumen de gustos y las notas se envían al proveedor elegido; Gemini TTS sólo recibe las frases del DJ.
+- **Pruebas:** `DjContinuityTest` (set enlazado sin segundo saludo, prompt del enlace, sugerencias limpias y una por artista, nada se envía sin IA, perfil de gustos, frases de reserva sin despedida).
+
+### Verificación
+- `:composeApp:jvmTest --tests "org.spotube.spotube.features.*"`: 44 pruebas aprobadas, 0 fallos.
+- `:composeApp:assembleNightlyDebug` completó correctamente. SHA-256 `66082a4fff52ec3f724499fd5ac4106e3545ea588d052842c4fd17bf87a42708`.
+
+### Alcance del cambio
+- Capa compartida del DJ, memoria local por perfil, Ajustes y cadenas en inglés y español.
+- Cada set encadenado usa 3 peticiones de IA (sugerencias, orden y enlace) en lugar de 2, y 2 de Gemini TTS.
+
+### No verificado
+- Comportamiento con el proveedor real en el Moto g22: calidad de las sugerencias, enlaces y variedad a lo largo de varios sets.
+- El corte entre el enlace y la primera canción del set siguiente depende de cuánto tarde en resolverse el audio de esa canción; no se midió.
+- Llamadas en paralelo al plugin de metadatos (búsqueda, artistas afines): no se comprobó si el plugin las serializa.
+
+### Cambios residuales en el entorno
+- Salidas de compilación Nightly actualizadas. Ningún cambio en dispositivos.
+
+---
+
+## 35. DJ — Selector de voz por motor y prueba de voz
+
+### Problema
+En Ajustes sólo se podía elegir el motor de voz (Gemini, Piper o voz del dispositivo). No había forma de elegir una voz concreta: Gemini la decidía por género y carácter y Android tomaba la «mejor» voz española que encontraba. Tampoco se podía escuchar una voz antes de usarla en un set.
+
+### Respaldo con voces de Edge (descartado)
+- Se intentó añadir las voces neuronales del servicio «Leer en voz alta» de Microsoft Edge como respaldo cuando se agota la cuota de Gemini.
+- Ese servicio sólo atiende al navegador Edge: usarlo exige hacerse pasar por él (origen y agente de usuario) y generar el token anti-bots `Sec-MS-GEC`. Eso es eludir un control de acceso, así que la prueba real se bloqueó y el código se eliminó por completo, sin llegar a ninguna compilación instalada.
+- La alternativa legítima propuesta es Azure AI Speech (servicio oficial, capa gratuita con clave). El usuario decidió no implementarla por ahora.
+
+### Solución
+- **Selector «Voz del DJ»** (`DjVoicePicker.kt`, `DjVoiceViewModel`), justo debajo de «Motor de voz del DJ». Muestra las voces del motor elegido:
+  - **Gemini:** las 30 voces prediseñadas (`DjVoiceCatalog.kt`) con su estilo y género, por ejemplo «Puck · animada · Masculino».
+  - **Voz del dispositivo:** las voces instaladas en el teléfono para el idioma de la app y el español (`NativeSpeech.systemVoices`), con idioma, código y si necesitan internet. Se omiten las que no tienen datos descargados.
+  - **Piper:** los dos hablantes del modelo (masculino y femenino).
+  - En todos, «Automática (según género y carácter)» conserva el comportamiento anterior.
+- La voz se guarda por motor (`UserSettings.djVoiceNames`): cambiar de motor no pierde la voz elegida en el otro. Cuando Gemini no tiene clip, la voz del dispositivo usa la voz elegida para ella.
+- Una voz del sistema elegida a mano se respeta siempre; ya no se sustituye por Piper al elegir un género (`DjSpeechOptions.mayUsePiper`).
+- **«Probar la voz»:** reproduce una frase corta con el motor y la voz elegidos. Con Gemini avisa de que cada prueba consume una petición de la cuota.
+- Escritorio: no lista voces (usa la predeterminada del sistema operativo) y lo indica. iOS: lista las voces de `AVSpeechSynthesisVoice` y respeta la elegida.
+
+### Verificación
+- `:composeApp:jvmTest --tests "org.spotube.spotube.features.*"`: 46 pruebas aprobadas (2 nuevas: la voz elegida de Gemini gana y un nombre desconocido vuelve a la automática; una voz del sistema elegida a mano nunca pasa a Piper).
+- `:composeApp:assembleNightlyDebug` completó correctamente. SHA-256 `f4f78068ca8fb179a93584c521c1221cafcd68a06bc0e5eed45d52ff24261253`.
+
+### No verificado
+- Lista real de voces del Moto g22 y la muestra de cada motor: pendiente de instalar y probar en el dispositivo.
+- Los géneros de las voces de Gemini siguen la documentación pública; no se escucharon todas.
+- iOS no se compiló (requiere macOS).
+
+### Cambios residuales en el entorno
+- Salidas de compilación Nightly actualizadas. Ningún cambio en dispositivos.
+
+---
+
+## 36. DJ — Aviso de voz una sola vez, ocultamiento a los 5 s e icono del motor
+
+### Problema
+Con la cuota de Gemini agotada, el aviso «La voz de Gemini no está disponible…» aparecía en cada set nuevo y no se quitaba de la pantalla hasta pulsar «Descartar». Tampoco había forma de saber qué motor estaba hablando.
+
+### Causa raíz
+- Cada frase del DJ (saludo, enlace, cierre) intentaba Gemini y, al fallar, volvía a publicar el aviso.
+- Los avisos de la tarjeta del DJ sólo se cerraban a mano.
+
+### Solución (`DjService`, `DjEmblem.kt`, `DjNavigationControl.kt`)
+- **Una sola vez:** el aviso sólo se muestra al pasar de Gemini a la voz del dispositivo. Mientras siga sin Gemini no se repite; cuando Gemini vuelve a sintetizar, el estado se restablece.
+- **Ocultamiento automático:** todos los avisos del DJ desaparecen a los 5 s. El de «DJ en pausa durante Jam» se mantiene mientras dura la sesión.
+- **Icono del motor:** el botón del DJ muestra un distintivo en la esquina con el motor que habla:
+  - estrella de IA para Gemini;
+  - caja para Piper (modelo local);
+  - teléfono para la voz del dispositivo, también cuando Gemini está caído.
+  - Tiene descripción accesible («Voz: Gemini», etc.).
+
+### Verificación
+- `:composeApp:jvmTest --tests "org.spotube.spotube.features.*"`: 46 pruebas aprobadas.
+- `:composeApp:assembleNightlyDebug` completó correctamente. SHA-256 `567fdaf95e3b1943314f1af51330be80341649afeee3c0a5e210a1319b294981`.
+- Moto g22: instalado como actualización (incluye §35); la app abre sin cierres.
+
+### No verificado
+- El distintivo y el aviso no se vieron en pantalla: el teléfono tenía la pantalla apagada al hacer la captura.
+- La lista real de voces del teléfono (§35) sigue pendiente de revisar en el dispositivo. El motor TTS instalado es Google (`com.google.android.tts`).
+
+### Cambios residuales en el entorno
+- **Moto g22:** Nightly actualizada (`lastUpdateTime` 2026-11-13 03:28:24), con datos conservados.
+
+### Corrección tras revisar la captura
+- **Distintivo:** quedaba en el centro del emblema y tapaba el texto «DJ». Ahora va en la esquina superior izquierda del botón (`DjNavigationControl` envuelve el botón y coloca el distintivo encima). Verificado con captura en el Moto: «DJ» visible y estrella de Gemini en la esquina.
+- **«Voz del DJ»:** el subtítulo repetía la opción del desplegable y partía el título en dos líneas; se quitó.
+- APK reinstalado en el Moto. SHA-256 `38337b9662f536f6b6ffc5aafd807c9523eb70d0ab9f1f483d3eb48b5d2dc93f`.
+
+---
+
+## 37. DJ — Retirada de Piper
+
+### Motivo
+Las voces de Piper integradas (modelo `es_ES-sharvard-medium`, hablantes masculino y femenino) sonaban mal y se entendían poco, como una mezcla de español e inglés. Probablemente era un fallo de la fonetización, no la calidad normal del modelo, pero no se investigó. Además el motor subía el APK de unos 212 MB a 346 MB. El usuario prefiere la voz del dispositivo como respaldo de Gemini.
+
+### Cambios
+- **Build:**
+  - Se quitó `includeBuild("third_party/piper-kotlin")` de `settings.gradle.kts`.
+  - Se quitaron las dependencias `piper-engine`/`piper-player` y la carpeta de assets de eSpeak de `composeApp/build.gradle.kts`.
+- **Git:** el submódulo `third_party/piper-kotlin` y `.gitmodules` salieron del índice (`git rm --cached`). La carpeta sigue en disco sin seguimiento, con su commit local `0a34d36` y un cambio sin confirmar en `third-party/piper1-gpl`, por si se quiere conservar.
+- **Android:**
+  - Eliminados `PiperSpeechService`, su servicio `:piper` del manifiesto y la copia de `espeak-ng-data` en `androidMain/assets`.
+  - `NativeSpeech` ya no tiene ruta Piper; la reproducción de clips de Gemini sigue igual.
+  - `MyApplication` vuelve a su versión confirmada: sin el corte por nombre de proceso, que sólo servía a `:piper`.
+- **Código compartido:**
+  - `DjSpeechEngine` queda en `SYSTEM` y `GEMINI_CLOUD`. `DjActiveVoice` queda en `GEMINI` y `DEVICE`.
+  - Se quitaron la opción y la voz Piper de Ajustes, sus textos y `mayUsePiper`.
+  - El límite de una locución con la voz del dispositivo vuelve a 15 s.
+- **Migración:** `SettingsRepository` lee con `coerceInputValues = true`, así que un ajuste guardado como `PIPER_LOCAL` pasa a la voz del dispositivo en lugar de impedir que se lean los ajustes.
+- **Pruebas:** quitadas la prueba unitaria `mayUsePiper` y las instrumentadas `piper` y `tts_male`; se conserva el diagnóstico `tts_voices`.
+- **Docs:** `docs/dj-mix-ajustes.md` describe los dos motores restantes.
+
+### Verificación
+- No se compiló ni se probó: el usuario pidió detenerse antes de compilar.
+- Búsqueda de «piper» en `composeApp`, `settings.gradle.kts` y `gradle`: sólo queda el comentario de la migración.
+
+### Pendiente
+- Compilar (`:composeApp:jvmTest`, `:composeApp:assembleNightlyDebug`), medir el nuevo tamaño del APK e instalar en el Moto. El modelo copiado a `files/piper/` en el Moto se puede borrar limpiando los datos o al desinstalar.
+- Decidir si se borra la carpeta `third_party/piper-kotlin` del disco.
+
+---
+
+## 38. Reproducción — Precarga desde el minuto 1, reintento y transición sin pausas
+
+### Problema
+Se pidió garantizar que la siguiente canción se precargue a tiempo y que el fundido respete lo configurado.
+
+### Diagnóstico en el Moto g22
+- **Ajustes del usuario:** fundido de 10 s con curva suave, «sin pausas» activado, Automix de 8 compases.
+- **Medición** de la transición de «Como Te Olvido?» (4:50) a «Two Broken Halves»:
+  - La precarga se pedía unos 15–19 s antes del final (fundido + 5 s).
+  - Resolver el audio tardó 5,6 s (búsqueda del complemento en YouTube) y luego hubo que llenar el búfer.
+  - Las dos pistas sonaron juntas desde unos 8 s antes del final: el fundido empezó unos 2,5 s tarde y duró unos 7,5 s en lugar de 10.
+- **Automix:** sin BPM ni posición del primer compás del proveedor, hace un fundido normal (diseño esperado).
+- **Riesgos en el código:**
+  - Un motor en espera con error se promocionaba igual, y la reproducción podía quedarse detenida (sus errores no se escuchaban).
+  - Sin fundido, el final se detectaba con la posición que ExoPlayer informa cada 250 ms, dejando un hueco de hasta ~0,3–0,5 s.
+
+### Solución (`TransitionAudioPlayer`)
+- **Precarga desde el minuto 1:** la siguiente pista se prepara al pasar los 60 s de la actual (`PRELOAD_AFTER`). En pistas más cortas se conserva la ventana mínima (fundido + 5 s). El fundido sigue empezando exactamente a la distancia configurada del final.
+- **Reintento:** los errores del motor en espera se escuchan. Una precarga fallida se repite hasta 3 veces con 3 s de espera. Si al llegar el final no hay un motor en espera válido, la siguiente se carga de nuevo en el motor activo, sin quedarse detenida.
+- **Sin pausas:** con fundido en 0, la siguiente arranca 150 ms antes del final (latencia de salida del motor) y la saliente termina sola antes de la promoción. La posición se estima entre informes del motor (extrapolación de hasta 300 ms mientras suena), tanto para este arranque como para el inicio del fundido.
+- **Pruebas nuevas** en `TransitionAudioPlayerTest`:
+  - precarga a los 60 s y fundido exacto a 10 s del final;
+  - reintento tras un error y recarga al final si sigue fallando;
+  - arranque anticipado sin pausas.
+
+### Verificación
+- `:composeApp:jvmTest --tests "org.spotube.spotube.features.*"`: 48 pruebas aprobadas (14 del reproductor).
+- `:composeApp:assembleNightlyDebug`: correcto. Con la retirada de Piper (§37) el APK baja de 346 MB a 231 MB. SHA-256 `59238e10ed308d4395834dbe65abdbf70e3951241277cec334284cc409241613`.
+- **Moto g22:**
+  - Instalado como actualización; la app abre sin cierres.
+  - Se borraron los restos de Piper en los datos privados de la app (`files/piper`, `files/espeak-ng-data`).
+
+- **Transición real en el Moto** (fundido de 10 s, curva suave), de «Sólo Pienso en Ti» (~5:05) a «In My Place»:
+  - La siguiente se pidió a las 04:32:00, hacia el segundo 60 de la actual. Se resolvió en 6,0 s y el proxy terminó de descargarla completa a las 04:34:00, unos 2 min antes de necesitarla.
+  - Las dos pistas sonaron juntas desde ~04:36:00,2 hasta ~04:36:10,3: **unos 10 s, lo configurado**. La entrante llegó a la promoción en la posición 9,9 s.
+  - La pista siguiente se volvió a pedir hacia su segundo 60 (04:36:57). Sin errores en el registro del proxy.
+- El reintento no se activó (no hubo fallos). La conexión no quedó inactiva porque el proxy descarga el archivo completo al caché.
+
+### No verificado
+- El modo sin fundido (fundido en 0) en el teléfono: el usuario tiene configurado un fundido de 10 s y no se cambió su ajuste. Está cubierto por la prueba `gaplessStartsTheNextTrackJustBeforeTheEnd`.
+- Silencios grabados al principio o al final de los archivos no se recortan (requeriría analizar el audio).
+
+---
+
+## 39. UI y reproducción — Botones con respuesta, mini reproductor, Atrás, Ajustes fluidos y fundido continuo
+
+### Problema (tras más de 24 h de uso)
+1. **Botones de reproducción** (reproductor mini y expandido, cabeceras, tarjetas): no animaban al pulsar ni mostraban un estado activo.
+2. **Mini reproductor:** sólo se abría deslizándolo, no con un toque.
+3. **Atrás** con el reproductor expandido cerraba la app en vez de minimizarlo.
+4. **Ajustes:** tardaba en abrir y el desplazamiento iba a saltos.
+5. **Mix:** el fundido subía el volumen de golpe y luego lo bajaba; parecía no respetar la curva elegida.
+
+### Causa raíz
+1. `ChromeIconButton` usaba el estilo `Quiet` de `MillenniumIconButton` bajo un fondo propio, sin respuesta visible al pulsar. Las tarjetas usaban `MillenniumIconButton` sin indicar que la pista sonaba.
+2. El mini reproductor no tenía acción de toque; sólo el gesto de la hoja inferior.
+3. Ningún manejador de Atrás atendía la hoja expandida, así que Atrás llegaba a Navigation3 y, en la raíz, cerraba la actividad.
+4. `settingsSectionCard` metía cada sección completa en un único elemento de la `LazyColumn`. Reproducción, con unas 30 tarjetas (DJ, voz, IA, memoria…), se componía y medía de una vez al abrir o al aparecer al desplazar, y cualquier cambio de ajuste la recomponía entera. La memoria del DJ además decodificaba el historial en el hilo principal.
+5. **Curvas:** sí se aplican (`crossfadeGains` con la curva de Ajustes al iniciar cada fundido) y coinciden con `docs/ESTUDIO_MEJORAS.md` (potencia constante cos/sin, lineal, curva S). El documento invierte gA/gB en la curva S; el código usa la dirección correcta.
+   - **Defecto encontrado:** el volumen se recalculaba con la posición que ExoPlayer informa cada 250 ms, así que avanzaba a escalones. Además, al arrancar la pista entrante su posición se queda en 0 unos cientos de ms y luego salta, lo que hace subir de golpe la ganancia de entrada.
+   - La estimación de posición de §38 sólo guardaba un motor a la vez, así que con dos motores no extrapolaba.
+
+### Solución
+- **`ChromeIconButton` propio:**
+  - se hunde (escala 0,86 con resorte) y se ilumina mientras se pulsa;
+  - aro blanco con foco de D-pad;
+  - nuevo parámetro `active` (aro verde con brillo) y `size`;
+  - sigue enfocable mientras carga.
+  - Aleatorio y repetición del reproductor expandido usan `active`. Tarjetas (`PlayableCard`) y filas (`PlayableListTile`) usan el mismo botón y marcan la pista que suena.
+- **Mini reproductor:** un toque expande la hoja (`animateTo(FullyExpanded)`); los botones internos conservan su propio toque.
+- **Atrás:** `NavigationBackHandler` (navigationevent-compose) activo sólo con la hoja expandida; la minimiza.
+- **Ajustes:** `settingsSectionCard` emite un elemento por tarjeta y la forma de cada fila reconstruye el panel (esquinas arriba y abajo, bordes laterales). La memoria del DJ se calcula en `Dispatchers.Default`.
+- **Fundido:**
+  - un reloj por motor (`DeckClock`) estima la posición entre informes;
+  - el progreso del fundido usa la posición estimada de la pista entrante, así que la ganancia cambia en cada ciclo de 20 ms y no a saltos de 250 ms.
+  - Registros `Transition` (inicio con curva, duración y plan; progreso cada 10 %; promoción; cancelación a mitad de fundido) para medir en el teléfono.
+
+### Verificación
+- `:composeApp:jvmTest --tests "org.spotube.spotube.features.*"`: 48 pruebas aprobadas.
+- `:composeApp:assembleNightlyDebug`: correcto, 231 MB. SHA-256 `b5b1619a5a8b501aa5ab5ba2eaf42034c3fbd0ec3a192e197011769f8cb3fdd5`.
+
+- **Moto g22** (instalado con permiso del usuario):
+  - Daily Mix 1 se inició desde el botón de su tarjeta, que pasó a «pausa» con aro verde.
+  - **Fundido real en Mix** (curva suave, 10 s): `length=9993ms`, plan sin ajuste de tempo porque el proveedor no da BPM. La ganancia avanzó de forma continua y monótona: salida 1,0 → 0,971 → 0,902 → 0,793 → 0,653 → 0,491 → 0,335 → 0,205 → 0,094 → 0,023, entrada a la inversa. Las posiciones de ambas pistas avanzaron ~1 s por cada 10 %. Promoción a los 10 s, sin cancelaciones a mitad de fundido.
+  - Precarga a los 61 s de la pista y, tras la transición, otra vez a los 60 s de la nueva.
+
+### No verificado
+- La percepción del fundido (si aún se nota un salto) depende de escucharlo. Si persiste con ganancias continuas, la causa sería la diferencia de sonoridad entre pistas, no la curva.
+- La curva suave suma amplitudes (leve bajada de volumen a la mitad con canciones distintas); potencia constante mantiene el volumen percibido.
+- Aspecto de las tarjetas de Ajustes por filas, el toque en el mini reproductor y Atrás en el teléfono: pendientes de que el usuario los revise.
+
+---
+
+## 40. Reproducción y DJ — «Anterior» que rebobina y saludos del DJ con contexto
+
+### Problema
+1. Un toque en «Pista anterior» saltaba directamente a la pista anterior, en lugar de volver al inicio de la actual.
+2. El saludo de un set iniciado con el botón DJ era siempre el mismo: no venía de la IA.
+
+### Causa raíz
+1. `TransitionAudioPlayer.skipToPrevious` siempre iniciaba la pista anterior.
+2. **Saludo:**
+   - `DjAiPlanner.dialogue` descartaba la respuesta completa si la frase de cierre no contenía el nombre del DJ (el prompt no lo pedía) o si el saludo no decía literalmente «DJ <nombre>». Al fallar, se usaban 3 plantillas fijas elegidas por el número de set, así que tras reiniciar la app siempre salía la misma.
+   - El modelo configurado en Groq (`openai/gpt-oss-120b`) razona antes de responder y con `max_tokens` 1024 la respuesta podía quedar cortada.
+   - En el teléfono, el modelo de Gemini guardado es `gemini-flash-latest:generateContent`. Incluye por error el sufijo del endpoint y fallaría si se elige Gemini (Groq es el seleccionado).
+
+### Solución
+- **«Anterior»:** pasados 3 s de la pista, el primer toque la rebobina a 0 y sigue sonando. En los primeros 3 s (o sea, un segundo toque seguido) pasa a la anterior. En la primera pista sólo rebobina. Aplica a la app, la notificación, el control remoto y Jam.
+- **Saludos del DJ:**
+  - Basta un saludo válido: el nombre ya no es obligatorio y la frase de cierre es opcional (sin ella se usa la plantilla de reserva).
+  - El prompt pide un saludo original de dos o tres frases según:
+    - la hora, el día de la semana y la fecha (`DjMoment`: p. ej. «sábado 14 de noviembre de 2026, 4:40 (madrugada, fin de semana)»); menciona fechas especiales conocidas;
+    - el ánimo y la energía de las canciones del set;
+    - los gustos e historial de la memoria del DJ;
+    - la personalidad configurada.
+  - Prohíbe fórmulas repetidas como «preparé X canciones» y no inventa el clima. El momento también se envía al enlace entre sets y a las sugerencias de canciones.
+  - Respuestas hasta 2048 tokens; con `gpt-oss` en Groq se pide `reasoning_effort: low`.
+  - Registros `DjAi` cuando el saludo no llega (HTTP, tiempo agotado, texto vacío o sin saludo), sin claves ni contenido.
+  - Saludo de reserva sin IA variado: combina el saludo según la hora, el día, artistas del set y plantillas al azar.
+- **Clima:** no se incluyó. Requiere la ubicación del teléfono y un servicio meteorológico; queda como propuesta.
+
+### Verificación
+- `:composeApp:jvmTest --tests "org.spotube.spotube.features.*"`: 51 pruebas aprobadas. Nuevas:
+  - «Anterior» rebobina y retrocede al segundo toque;
+  - el saludo de la IA se acepta sin nombre ni cierre y lleva el momento y la personalidad al prompt;
+  - los saludos de reserva varían.
+- `:composeApp:assembleNightlyDebug`: correcto. SHA-256 `69b90a65650842098a28f7e67a6d1aa4e1bfd1fa45b83d2e9a31d1205f6b4009`.
+
+### Prueba en el Moto g22 y correcciones posteriores
+- **«Anterior»** (tecla multimedia): con «Realízame mis sueños» en 9,7 s, un toque la dejó en 0,1 s; el segundo pasó a «Lo Perdí Todo». ✔
+- **Saludo de la IA (Groq):** sin advertencias `DjAi`. Primer intento: saludo contextual (sábado, mañana, fin de semana, vallenato con reggaetón, artistas del set), pero demasiado largo (cortado a media palabra), leía la fecha y la hora completas e inventaba «el sol».
+  - Corrección: máximo 45 palabras; momento dicho con naturalidad sin año ni hora exacta; prohibido mencionar el clima; recorte al último final de frase. También se aplica a los enlaces.
+  - Resultado: «¡Qué tal, gente! Soy DJ Halo y les doy la bienvenida a este sábado por la mañana con una mezcla que vibra entre la nostalgia del vallenato y la energía del reggaetón…». Completo, natural, sin clima. ✔
+- **Voz de Gemini:** fallaba con `SocketTimeoutException`, porque el cliente HTTP compartido corta la lectura antes de que Gemini termine de generar el audio.
+  - Corrección: la voz usa su propio cliente (`HttpClientFactory.create` con `HttpTimeout` de 45 s) y registra código y duración (`GeminiVoice`).
+  - Resultado: HTTP 200 en 9,5 s (237 caracteres) y 10,8 s (304 caracteres), sin aviso de fallo. ✔
+- **Botón DJ justo al abrir la app:** decía «Activa DJ en Ajustes» porque los ajustes aún no se habían leído. Ahora consulta el valor guardado antes de responder.
+- APK final instalado. SHA-256 `b1f20fba3949e1d908f31a6f8a333d9e4bc5974361680bad50660d6a02c997bb`. 51 pruebas JVM aprobadas.
+
+### No verificado
+- El caso del botón DJ pulsado durante el arranque no se pudo reproducir: en la prueba la app aún estaba en blanco cuando llegó el toque.
+- Si el audio de Gemini tarda más de 8 s en llegar, el saludo empieza con la voz del teléfono (la generación tarda 9,5–11 s; normalmente termina mientras se carga la primera canción).
+
+---
+
+## 41. DJ — Voz del sistema completa y más fuerte, saludos personales y cortos (guía de saludos)
+
+### Problema
+1. Con la voz del sistema, el saludo se cortaba y aparecía «La voz del sistema no está disponible, la música continuará».
+2. La voz del sistema sonaba a ~70 % del volumen de la música.
+3. El DJ hablaba en plural («¡Qué tal, gente!», «les doy», «prepárense»), como animador de fiesta, no como DJ personal.
+4. Los saludos seguían siendo largos. Se aportó `docs/GUIA_SALUDOS.md`.
+
+### Causa raíz
+1. `DjService.speak` daba a la voz del dispositivo un límite fijo de 15 s; un saludo de ~45 palabras con generación incluida lo superaba.
+2. Android TTS no admite volumen por encima de 1,0 y la música está masterizada mucho más fuerte que la voz sintetizada.
+3. y 4. El prompt no fijaba el destinatario ni la estructura y permitía hasta 45 palabras.
+
+### Solución
+- **Tiempo de la voz del sistema:** límite según la longitud del texto (8 s + 110 ms por carácter, entre 15 y 90 s; `deviceSpeechTimeoutMs`).
+- **Volumen:** Android sintetiza el texto a un WAV (`synthesizeToFile`) y lo reproduce con `AudioTrack` y un `LoudnessEnhancer` de +6 dB (con limitador, sin saturar). Si el motor no puede generar el archivo, habla directo como antes. Los clips de Gemini no cambian.
+- **Guía de saludos** (`DjDialogueSkill`):
+  - DJ personal: segunda persona del singular y tuteo. Prohíbe «gente», «amigos», «ustedes», «les», «prepárense».
+  - Introducción completa de 30–40 palabras con la estructura saludo casual + «soy DJ X, tu DJ personal» + razón contextual + cierre breve.
+  - Enlaces entre sets (cambio de ánimo) de 25–40 palabras. Cierre de reserva de 10–15.
+  - Sin fecha completa, hora exacta ni clima.
+- **Tope duro:** `cleanDjDialogue` corta a 40 palabras en el último final de frase.
+- **Sin repeticiones:** las últimas 5 frases del DJ se guardan (también entre sesiones; `DjHistory.recentLines`) y se envían a la IA para que no las repita. «Olvidar lo aprendido» también las borra.
+- **«Menos comentarios»** (Ajustes → Reproducción, apagado por defecto): saludo de 10–15 palabras, enlaces de 5–10 y cierre de 5–10, en la IA y en las plantillas.
+- **Plantillas sin IA** reescritas en singular según la guía.
+
+### Verificación
+- `:composeApp:jvmTest --tests "org.spotube.spotube.features.*"`: 53 pruebas aprobadas. Nuevas:
+  - tope de 40 palabras en final de frase;
+  - el prompt exige singular, 30–40 palabras y no repetir frases;
+  - «menos comentarios» acorta el prompt y la plantilla.
+- `:composeApp:assembleNightlyDebug`: correcto. SHA-256 `79da8f8a28633f6dbcc31c757757d832d29695628ef02e94c053305396fc54a2`.
+
+### Prueba en el Moto g22 y ajuste posterior
+- **Nuevo caso de instrumentación** `dj_system_voice` (no toca los ajustes): un saludo de 36 palabras con la voz del sistema tardó **24 s** entre generar y decir. Eso confirma que el límite fijo de 15 s lo cortaba.
+- **Defecto detectado:** generar el WAV antes de hablar añadía ~9 s de silencio.
+  - Corrección: la voz del sistema también se **genera por adelantado**, igual que Gemini: el saludo mientras carga el set y el cierre o enlace 45 s después del inicio.
+  - Nuevo `NativeSpeech.synthesize` (Android; `null` en escritorio e iOS) y `DjVoiceClip.boost`.
+  - Si Gemini falla, el mismo proceso genera la voz del sistema como respaldo, ya con realce.
+  - Si el audio no llega a tiempo, la voz del sistema habla directo (al instante, sin realce).
+  - Un `Mutex` evita dos usos simultáneos del motor TTS. «Probar la voz» usa la misma ruta con realce. El límite pasa a 10 s + 140 ms por carácter.
+- **Medido:**
+  - Instrumentación: 36 palabras generadas en 8,8 s (14,1 s de audio, `boosted=true`), reproducidas completas en 14,3 s.
+  - Set real: Gemini respondió **HTTP 429** (cuota agotada) y la voz del sistema se generó en 3,5 s (178 caracteres, 11,4 s de audio).
+  - El aviso de cuota salió una vez, el distintivo cambió a teléfono y el saludo sonó completo antes de la música.
+- **Saludo obtenido** (Groq, 35 palabras, singular, estructura de la guía): «¡Qué más, hermano! Soy DJ Halo, tu DJ personal, y te traje un mix que combina tu amor por el vallenato clásico y esos ritmos frescos que te ponen la sonrisa. Aquí va, a escuchar.»
+- APK final: SHA-256 `cb955fe871e0263b1dbcca661edcf88875e26c3aca61bdc8a3068172b4f8e701`. 53 pruebas JVM aprobadas.
+
+### No verificado
+- La sonoridad relativa voz/música con el realce de +6 dB es una apreciación del usuario; el realce es fijo y podría hacerse configurable.
+- «Menos comentarios» no se probó en el teléfono (apagado por defecto).
+
+---
+
+## 42. Repositorio — Commits locales de §33 a §41
+
+### Objetivo
+Registrar en commits locales (sin publicar) el trabajo de DJ, reproducción e interfaz de §33–§41 en la rama `integration/upstream-2026-11-12`.
+
+### Commits
+| Commit | Contenido | Secciones |
+|---|---|---|
+| `803edf11` | `build(dj)`: retirada de Piper (submódulo, build incluido, dependencias, assets de eSpeak, servicio `:piper`) | §37 |
+| `b2e8123e` | `feat(player)`: precarga desde el minuto 1, reintento, arranque sin pausas 150 ms antes, fundido continuo con reloj por motor, «Anterior» que rebobina | §38, §39, §40 |
+| `99a84b7e` | `feat(ui)`: botones de reproducción con animación y estado activo, toque y Atrás en el reproductor, Ajustes por filas perezosas | §39 |
+| `50fe7936` | `feat(dj)`: voz Gemini, selector y prueba de voz, enlace entre sets, selección sin repeticiones, memoria y personalidad, saludos según `docs/GUIA_SALUDOS.md`, voz del sistema generada por adelantado con realce | §33–§36, §40, §41 |
+| (este) | `docs`: bitácora, `docs/ESTUDIO_MEJORAS.md` y `docs/GUIA_SALUDOS.md` | §42 |
+
+### Alcance
+- Commits sin atribuciones y sin `push`. Excluido `.opencode/OpenCode_Session.json`.
+- Los commits intermedios pueden no compilar por separado, porque la retirada de Piper y los cambios del DJ comparten `NativeSpeech.android.kt`. El último estado está verificado: 53 pruebas JVM y `:composeApp:assembleNightlyDebug` (SHA-256 `cb955fe8…e701`, instalado en el Moto g22).
+
+### Pendiente
+- Publicar (`push`) y, si procede, una Release cuando el usuario lo indique.
+
 ---
 
 ## Historial de Versiones
@@ -1616,3 +2051,14 @@ Eliminar la espera entre bloques consecutivos del DJ y evaluar una alternativa n
 | 2026-11-06 | — (sin publicación) | Spotube no abría en la TV física (§29): librería Rust desajustada con sus bindings UniFFI, que se cargaba vía Discord Rich Presence. Discord solo en escritorio, `catch Throwable` y Rust recompilado desde cero. Verificado en la TV: abre y reproduce sin cierres |
 | 2026-11-06 | — (sin publicación) | Banner de Android TV (§30): el provisional (nota verde recortada) se sustituye por los auriculares oficiales y el logotipo «Spotube». La protección de firma solo se aplica a `:composeApp`. Verificado en el lanzador del emulador |
 | 2026-11-12 | Nightly local (sin publicación) | DJ, Mix y credenciales seguras (§31): sets de seis pistas, voz por bloque, Mix aislado, almacenamiento nativo por proveedor y validación en Moto g22. Release pendiente de pruebas manuales de Nightly |
+| 2026-11-12 | Nightly local (sin publicación) | Seguimiento DJ (§32): Piper aislado sintetiza en el Moto; voz masculina/femenina explícita usa el hablante del modelo si está instalado. Timeout DJ ampliado a 120 s para Piper tras detectar que la reproducción real tarda más de 15 s. Build y prueba instrumentada `tts_male` aprobados; Release no publicada |
+| 2026-11-13 | Nightly local (sin publicación) | Voz natural del DJ (§33): motor Gemini TTS con estilo, acento y voz por género/carácter, usando la clave de Gemini de la sección de IA. Saludo y despedida sintetizados por adelantado para que suenen sin espera; respaldo a la voz del dispositivo. 38 pruebas JVM y build Nightly aprobados; sin probar aún en el Moto con clave real |
+| 2026-11-13 | Nightly local (sin publicación) | DJ (§34): enlace entre sets en una sola intervención y sin segundo saludo; selección sin repetir canciones de los últimos 20 sets ni artistas de los dos últimos, con sugerencias libres de la IA buscadas en el proveedor y artistas afines; personalidad, memoria de gustos y notas en Ajustes. 44 pruebas JVM y build Nightly aprobados; sin probar en el Moto |
+| 2026-11-13 | Nightly local (sin publicación) | Selector de voz del DJ por motor (§35): 30 voces de Gemini, voces instaladas del dispositivo y hablantes de Piper, guardadas por motor, con botón «Probar la voz». Respaldo con voces de Edge descartado por eludir su control de acceso. 46 pruebas JVM y build Nightly aprobados; sin probar en el Moto |
+| 2026-11-13 | Nightly local (sin publicación) | Aviso de voz del DJ una sola vez por cambio de motor y ocultamiento automático a los 5 s; distintivo en el botón del DJ con el motor que habla (§36). Instalado en el Moto g22 junto con §35 |
+| 2026-11-13 | — (sin compilar) | Piper retirado del proyecto (§37): submódulo fuera del índice, servicio `:piper`, assets de eSpeak, opción de Ajustes y código eliminados; migración del ajuste `PIPER_LOCAL` a la voz del dispositivo. Sin compilar por indicación del usuario |
+| 2026-11-13 | Nightly local (sin publicación) | Reproducción (§38): precarga de la siguiente pista al pasar el primer minuto, reintento de precargas fallidas y arranque 150 ms antes del final en modo sin pausas; incluye la retirada de Piper (APK 231 MB). 48 pruebas JVM; medido en el Moto: precarga hacia el segundo 60 y fundido de 10 s completo |
+| 2026-11-14 | Nightly local (sin publicación) | UI y reproducción (§39): botones de reproducción con animación y estado activo, toque para expandir el mini reproductor, Atrás minimiza el reproductor, Ajustes por filas perezosas, fundido continuo con reloj por motor y registros de transición. 48 pruebas JVM; instalado en el Moto, fundido de 10 s medido con ganancias continuas |
+| 2026-11-14 | Nightly local (sin publicación) | «Anterior» rebobina y retrocede con el segundo toque; saludos del DJ generados por la IA con fecha, hora, ánimo del set, gustos y personalidad, y reserva variada (§40). Probado en el Moto: rebobinado, saludo natural de Groq y voz de Gemini (HTTP 200 en ~10 s tras darle su propio tiempo de espera) |
+| 2026-11-14 | Nightly local (sin publicación) | DJ (§41): la voz del sistema ya no se corta (límite según la longitud) y suena +6 dB; saludos de DJ personal en singular, 30–40 palabras con tope duro, sin repetir las últimas 5 frases, y opción «Menos comentarios»; voz del sistema generada por adelantado. Probado en el Moto: saludo completo de 35 palabras en singular, respaldo de voz del sistema tras el 429 de Gemini |
+| 2026-11-14 | Nightly local (sin publicación) | Commits locales de §33–§41 (§42): retirada de Piper, reproducción, interfaz, DJ y documentación. Sin push |
