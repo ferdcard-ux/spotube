@@ -29,6 +29,8 @@ Remove-Item Env:GITHUB_TOKEN
 
 El instalador queda en `composeApp/build/compose/binaries/main/graalvm-exe/`.
 
+Si se reutiliza esa carpeta al cambiar la versión, el empaquetador puede conservar su `package.json` generado y etiquetar el instalador con la versión anterior. Si existe y no coincide con la versión solicitada, elimina solo `composeApp/build/compose/binaries/main/graalvm-exe/package.json` antes de compilar. Comprueba `ProductVersion` del `.exe` además del nombre y hash.
+
 **Calcular el hash:**
 
 ```powershell
