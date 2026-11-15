@@ -2017,7 +2017,7 @@ Registrar en commits locales (sin publicar) el trabajo de DJ, reproducción e in
 - Los commits intermedios pueden no compilar por separado, porque la retirada de Piper y los cambios del DJ comparten `NativeSpeech.android.kt`. El último estado está verificado: 53 pruebas JVM y `:composeApp:assembleNightlyDebug` (SHA-256 `cb955fe8…e701`, instalado en el Moto g22).
 
 ### Pendiente
-- Publicar (`push`) y, si procede, una Release cuando el usuario lo indique.
+- El `push` y la publicación de la Release se completaron después; ver §45.
 
 ---
 
@@ -2035,7 +2035,7 @@ Generar los paquetes firmados para actualizar teléfonos Android y Android TV, c
 - APK: `applicationId=org.spotube.spotube`, `versionName=6.0.1`, `versionCode=48`; `apksigner` verifica la firma y confirma que coincide con la identidad del fork.
 - AAB: `jarsigner` informa `jar verified`; la huella SHA-256 del certificado coincide con `docs/SIGNING.md`.
 - El mismo APK incluye los lanzadores móvil y Android TV; no se genera un APK de TV separado.
-- No se instalaron los artefactos ni se publicaron.
+- Los artefactos no se instalaron en dispositivos. Se publicaron en la Release Stable `v6.0.1` de GitHub (§45).
 
 ---
 
@@ -2048,7 +2048,23 @@ Generar los paquetes firmados para actualizar teléfonos Android y Android TV, c
 - `:composeApp:packageGraalvmExe -Pnightly=false`: `BUILD SUCCESSFUL`; el binario nativo y el instalador reportan `FileVersion`/`ProductVersion=6.0.1`.
 - El instalador es x64 y no está firmado con Authenticode, conforme a la configuración del fork.
 - Se regeneró el `package.json` de build que aún indicaba 6.0.0; se eliminó el instalador mal etiquetado y se añadió una nota de prevención a `docs/BUILD-DESKTOP.md`.
-- No se instaló ni publicó.
+- No se instaló en Windows. Se publicó en la Release Stable `v6.0.1` de GitHub (§45).
+
+---
+
+## 45. Repositorio — Push y publicación de Stable 6.0.1
+
+### Publicación
+- Release: [Spotube Stable 6.0.1](https://github.com/ferdcard-ux/spotube/releases/tag/v6.0.1), creada el 2026-11-15 UTC en `ferdcard-ux/spotube`; publicada (no draft ni prerelease).
+- Tag `v6.0.1` apunta al commit `a923bf926187d335b90e2b2faf766a6fab2ab3eb`, enviado a `origin/integration/upstream-2026-11-12`.
+- Se subieron los tres artefactos solicitados:
+  - `spotube-6.0.1-win-x64.exe` (60 493 676 bytes; SHA-256 `28FE41083513D7C64427F788A72CC401E35A8CBBBDDCA013B43B27D6F512C354`).
+  - `composeApp-stable-release.apk` (79 940 143 bytes; SHA-256 `C00B95E16CAF2ECC6A95338354D476DF59778CCC94F089D2EFB5B4DEADE37921`).
+  - `composeApp-stable-release.aab` (29 265 017 bytes; SHA-256 `ED308B5FB73F06405B99E2220F46B8C71401A5F312599B8808EF1ED24332E169`).
+
+### Verificación
+- La API de GitHub confirma los tres assets como `uploaded`; sus tamaños y SHA-256 coinciden con los archivos locales.
+- La Release Stable se publicó sin trailers de coautoría.
 
 ---
 
@@ -2093,5 +2109,5 @@ Generar los paquetes firmados para actualizar teléfonos Android y Android TV, c
 | 2026-11-14 | Nightly local (sin publicación) | «Anterior» rebobina y retrocede con el segundo toque; saludos del DJ generados por la IA con fecha, hora, ánimo del set, gustos y personalidad, y reserva variada (§40). Probado en el Moto: rebobinado, saludo natural de Groq y voz de Gemini (HTTP 200 en ~10 s tras darle su propio tiempo de espera) |
 | 2026-11-14 | Nightly local (sin publicación) | DJ (§41): la voz del sistema ya no se corta (límite según la longitud) y suena +6 dB; saludos de DJ personal en singular, 30–40 palabras con tope duro, sin repetir las últimas 5 frases, y opción «Menos comentarios»; voz del sistema generada por adelantado. Probado en el Moto: saludo completo de 35 palabras en singular, respaldo de voz del sistema tras el 429 de Gemini |
 | 2026-11-14 | Nightly local (sin publicación) | Commits locales de §33–§41 (§42): retirada de Piper, reproducción, interfaz, DJ y documentación. Sin push |
-| 2026-11-14 | 6.0.1 (48) | Release Stable firmada generada: APK para Android móvil/TV y AAB; paquete y certificado del fork verificados (§43). Sin instalar ni publicar |
-| 2026-11-14 | 6.0.1 | Instalador desktop Windows GraalVM x64 generado; versión y hash verificados (§44). Sin instalar ni publicar |
+| 2026-11-14 | 6.0.1 (48) | Release Stable firmada generada: APK para Android móvil/TV y AAB; paquete y certificado del fork verificados (§43). Publicada en GitHub el 2026-11-15 UTC (§45) |
+| 2026-11-14 | 6.0.1 | Instalador desktop Windows GraalVM x64 generado; versión y hash verificados (§44). Publicado en GitHub el 2026-11-15 UTC (§45) |
