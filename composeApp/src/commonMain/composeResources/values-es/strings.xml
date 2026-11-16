@@ -215,6 +215,14 @@
     <string name="settings_error_cache_size_range">El tamaño debe ser 0 o un número positivo.</string>
     <string name="settings_enable_endless_playback_title">Activar reproducción infinita</string>
     <string name="settings_enable_endless_playback_subtitle">Sigue reproduciendo canciones recomendadas cuando termine la cola.</string>
+    <string name="settings_gapless_title">Reproducción sin pausas</string>
+    <string name="settings_gapless_subtitle">Prepara la siguiente canción antes de que termine la actual.</string>
+    <string name="settings_crossfade_title">Fundido cruzado</string>
+    <string name="settings_crossfade_seconds">%1$d segundos (0 desactiva el fundido)</string>
+    <string name="settings_crossfade_curve_title">Curva del fundido</string>
+    <string name="settings_crossfade_curve_power">Potencia constante</string>
+    <string name="settings_crossfade_curve_linear">Lineal</string>
+    <string name="settings_crossfade_curve_smooth">Suave</string>
     <string name="settings_playback_port_title">Puerto del servidor proxy de reproducción</string>
     <string name="settings_allow_remote_control_title">Permitir control remoto</string>
     <string name="settings_allow_remote_control_subtitle">Permite que otros dispositivos de la misma red controlen la reproducción al conectarse.</string>

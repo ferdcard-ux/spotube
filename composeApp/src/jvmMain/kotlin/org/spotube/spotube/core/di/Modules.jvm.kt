@@ -19,6 +19,7 @@ package org.spotube.spotube.core.di
 
 import org.spotube.spotube.core.audioplayer.AudioPlayer
 import org.spotube.spotube.core.audioplayer.AudioPlayerInterface
+import org.spotube.spotube.features.player.TransitionAudioPlayer
 import org.spotube.spotube.core.mediacontrol.SystemMediaControlService
 import org.spotube.spotube.core.paths.Paths
 import org.spotube.spotube.core.share.JvmShareService
@@ -36,7 +37,9 @@ import org.spotube.spotube.core.window.WindowStateRepository
 actual val platformModules = module {
     singleOf(::Paths)
     single { WindowStateRepository(get<Database>()) }
-    single<AudioPlayerInterface> { AudioPlayer(Unit) }
+    single<AudioPlayerInterface> {
+        TransitionAudioPlayer(AudioPlayer(Unit), { AudioPlayer(Unit) }, get())
+    }
     single<LocalMediaDiscoveryService> { JvmLocalMediaDiscoveryService() }
     single<ShareService> { JvmShareService() }
     single { SystemTrayService(get(), get(), get()) }

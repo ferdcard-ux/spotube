@@ -20,6 +20,7 @@ package org.spotube.spotube.core.di
 import android.content.Context
 import org.spotube.spotube.core.audioplayer.AudioPlayer
 import org.spotube.spotube.core.audioplayer.AudioPlayerInterface
+import org.spotube.spotube.features.player.TransitionAudioPlayer
 import org.spotube.spotube.core.paths.Paths
 import org.spotube.spotube.core.share.AndroidShareService
 import org.spotube.spotube.core.share.ShareService
@@ -30,7 +31,10 @@ import org.koin.dsl.module
 
 actual val platformModules = module {
     single { Paths() }
-    single<AudioPlayerInterface> { AudioPlayer(get<Context>()) }
+    single<AudioPlayerInterface> {
+        val context = get<Context>()
+        TransitionAudioPlayer(AudioPlayer(context), { AudioPlayer(context) }, get())
+    }
     single<LocalMediaDiscoveryService> { AndroidLocalMediaDiscoveryService(get()) }
     single<ShareService> { AndroidShareService(get()) }
     single {

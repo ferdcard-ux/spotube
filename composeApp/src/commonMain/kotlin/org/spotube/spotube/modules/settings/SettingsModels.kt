@@ -22,6 +22,7 @@ import org.spotube.plugin_interfaces.plugin_apis.audio.AudioQuality
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.spotube.millennium.theme.MillenniumPalette
+import org.spotube.spotube.features.player.CrossfadeCurve
 
 @Serializable
 enum class Theme {
@@ -48,6 +49,9 @@ data class UserSettings(
     val cacheFolder: String? = null,
     val cacheSizeLimitMB: Long = -1L,
     val enableEndlessPlayback: Boolean = true,
+    val gaplessEnabled: Boolean = true,
+    val crossfadeSeconds: Int = 5,
+    val crossfadeCurve: CrossfadeCurve = CrossfadeCurve.EQUAL_POWER,
     val playbackProxyServerPort: Int = 14769,
 
     // Remote Control (LAN)

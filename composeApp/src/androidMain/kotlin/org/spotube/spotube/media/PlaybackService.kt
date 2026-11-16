@@ -29,6 +29,7 @@ import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.MediaItem as Media3MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.LibraryResult
@@ -47,12 +48,16 @@ import org.spotube.spotube.R
 import org.spotube.spotube.core.audioplayer.AudioPlayer
 import org.spotube.spotube.core.audioplayer.AudioPlayerInterface
 import org.spotube.spotube.core.audioplayer.AudioPlayerQueue
+import org.spotube.spotube.core.audioplayer.LoopState
+import org.spotube.spotube.features.player.TransitionAudioPlayer
 import org.spotube.spotube.core.audioplayer.QueueEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.Duration.Companion.milliseconds
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.spotube.spotube.core.i18n.getString
@@ -65,7 +70,7 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
     private var taskRemoved = false
 
 
-    private val audioPlayer = inject<AudioPlayerInterface>().value as AudioPlayer
+    private val audioPlayer: TransitionAudioPlayer by lazy { inject<AudioPlayerInterface>().value as TransitionAudioPlayer }
     private val audioPlayerQueue: AudioPlayerQueue by inject()
     private val mediaBrowseHelper: MediaBrowseHelper by inject()
     private lateinit var librarySession: MediaLibrarySession
@@ -118,11 +123,14 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
         }
 
         librarySession =
-            MediaLibrarySession.Builder(this, audioPlayer.player, LibrarySessionCallback())
+            MediaLibrarySession.Builder(this, sessionPlayer(audioPlayer.activeDeck.value as AudioPlayer), LibrarySessionCallback())
                 .setSessionActivity(sessionActivity)
                 .build()
 
         addSession(librarySession)
+        serviceScope.launch(Dispatchers.Main) {
+            audioPlayer.activeDeck.collect { deck -> librarySession.setPlayer(sessionPlayer(deck as AudioPlayer)) }
+        }
 
         Log.i(TAG, "Library session created")
     }
@@ -161,6 +169,7 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
 
     override fun onDestroy() {
         Log.i(TAG, "onDestroy")
+        serviceScope.cancel()
         removeSession(librarySession)
         librarySession.release()
         super.onDestroy()
@@ -441,14 +450,50 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
 
     private suspend fun buildCurrentMediaItemList(): List<Media3MediaItem> =
         withContext(Dispatchers.Main) {
-            val count = audioPlayer.player.mediaItemCount
-            val items = mutableListOf<Media3MediaItem>()
-            for (i in 0 until count) {
-                val item = audioPlayer.player.getMediaItemAt(i)
-                items.add(item)
+            audioPlayer.playlistFlow.value.map { item ->
+                Media3MediaItem.Builder().setMediaId(item.url).setUri(item.url)
+                    .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder()
+                        .setTitle(item.title).setArtist(item.artist).build()).build()
             }
-            items
         }
+
+    // Todos los controles externos pasan por el coordinador para afectar ambos búferes.
+    private fun sessionPlayer(deck: AudioPlayer): Player = object : ForwardingPlayer(deck.player) {
+        override fun play() { serviceScope.launch { audioPlayer.play() } }
+        override fun pause() { serviceScope.launch { audioPlayer.pause() } }
+        override fun stop() { serviceScope.launch { audioPlayer.stop() } }
+        override fun setPlayWhenReady(playWhenReady: Boolean) {
+            if (playWhenReady) play() else pause()
+        }
+        override fun seekToNext() { serviceScope.launch { audioPlayer.skipToNext() } }
+        override fun seekToNextMediaItem() = seekToNext()
+        override fun seekToPrevious() { serviceScope.launch { audioPlayer.skipToPrevious() } }
+        override fun seekToPreviousMediaItem() = seekToPrevious()
+        override fun seekTo(positionMs: Long) {
+            serviceScope.launch { audioPlayer.seekTo(positionMs.milliseconds) }
+        }
+        override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
+            // Cada motor expone una sola canción; su índice 0 representa la canción actual.
+            seekTo(positionMs)
+        }
+        override fun setVolume(volume: Float) { serviceScope.launch { audioPlayer.setVolume(volume) } }
+        override fun setRepeatMode(repeatMode: Int) {
+            serviceScope.launch { audioPlayer.loop(when (repeatMode) {
+                Player.REPEAT_MODE_ONE -> LoopState.ONE
+                Player.REPEAT_MODE_ALL -> LoopState.ALL
+                else -> LoopState.NONE
+            }) }
+        }
+        override fun setShuffleModeEnabled(shuffleModeEnabled: Boolean) {
+            serviceScope.launch { audioPlayer.shuffle(shuffleModeEnabled) }
+        }
+        override fun setPlaybackParameters(playbackParameters: androidx.media3.common.PlaybackParameters) {
+            serviceScope.launch { audioPlayer.setPlaybackSpeed(playbackParameters.speed) }
+        }
+        override fun getAvailableCommands(): Player.Commands = super.getAvailableCommands().buildUpon()
+            .add(Player.COMMAND_SEEK_TO_NEXT).add(Player.COMMAND_SEEK_TO_PREVIOUS)
+            .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM).add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM).build()
+    }
 
     companion object {
         private const val TAG = "PlaybackService"

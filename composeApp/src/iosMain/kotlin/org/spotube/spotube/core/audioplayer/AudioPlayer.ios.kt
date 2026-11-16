@@ -48,7 +48,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
     }.create()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val lock = Mutex()
-    private val mediaSession = IosMediaSession()
+    private val mediaSession = if (context === TransitionDeckContext) null else IosMediaSession()
 
     private var disposed = false
 
@@ -97,7 +97,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
                 NativePlayerState.BUFFERING -> _playerState.tryEmit(PlayerState.BUFFERING)
                 NativePlayerState.PLAYING -> {
                     _playerState.tryEmit(PlayerState.PLAYING)
-                    mediaSession.update(
+                    mediaSession?.update(
                         _currentMediaItem.value,
                         _position.value.inWholeMilliseconds / 1000.0,
                         _duration.value.inWholeMilliseconds / 1000.0,
@@ -105,7 +105,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
                 }
                 NativePlayerState.PAUSED -> {
                     _playerState.tryEmit(PlayerState.PAUSED)
-                    mediaSession.update(
+                    mediaSession?.update(
                         _currentMediaItem.value,
                         _position.value.inWholeMilliseconds / 1000.0,
                         _duration.value.inWholeMilliseconds / 1000.0,
@@ -118,7 +118,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
         override fun onTime(positionMs: Long) {
             if (disposed || positionMs < 0) return
             _position.tryEmit(positionMs.milliseconds)
-            mediaSession.update(
+            mediaSession?.update(
                 _currentMediaItem.value,
                 positionMs / 1000.0,
                 _duration.value.inWholeMilliseconds / 1000.0,
@@ -139,10 +139,10 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
 
     init {
         engine.setListener(engineListener)
-        mediaSession.configure(
+        mediaSession?.configure(
             onPlay = { scope.launch { play() } },
             onPause = { scope.launch { pause() } },
-            onSeek = { seconds -> scope.launch { seekTo(seconds.milliseconds) } },
+            onSeek = { seconds -> scope.launch { seekTo((seconds * 1_000).toLong().milliseconds) } },
             onNext = { scope.launch { skipToNext() } },
             onPrevious = { scope.launch { skipToPrevious() } })
     }
@@ -184,7 +184,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
     actual override suspend fun play() {
         lock.withLock {
             if (disposed || currentPlaylist.isEmpty()) return
-            mediaSession.activate()
+            mediaSession?.activate()
             if (currentIndex !in currentPlaylist.indices) {
                 currentIndex = 0
                 _currentMediaItem.tryEmit(currentPlaylist[0])
@@ -204,8 +204,8 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
         lock.withLock {
             if (disposed) return
             engine.stop()
-            mediaSession.deactivate()
-            mediaSession.update(
+            mediaSession?.deactivate()
+            mediaSession?.update(
                 _currentMediaItem.value,
                 0.0,
                 _duration.value.inWholeMilliseconds / 1000.0,
@@ -299,7 +299,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
             currentIndex = startPosition.coerceIn(0, currentPlaylist.lastIndex)
             _currentMediaItem.tryEmit(currentPlaylist[currentIndex])
             _duration.tryEmit(currentPlaylist[currentIndex].duration)
-            mediaSession.update(
+            mediaSession?.update(
                 _currentMediaItem.value,
                 0.0,
                 _duration.value.inWholeMilliseconds / 1000.0,
@@ -310,6 +310,13 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
             } else {
                 _playerState.tryEmit(PlayerState.PAUSED)
             }
+        }
+    }
+
+    override suspend fun prepareForTransition(mediaItem: MediaItem) {
+        load(listOf(mediaItem), false, 0)
+        lock.withLock {
+            if (!disposed) loadCurrentIntoEngineLocked(autoPlay = false)
         }
     }
 
@@ -443,8 +450,8 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
         disposed = true
         engine.setListener(null)
         engine.destroy()
-        mediaSession.deactivate()
-        mediaSession.clear()
+        mediaSession?.deactivate()
+        mediaSession?.clear()
         scope.cancel()
 
         originalPlaylist.clear()
@@ -460,3 +467,6 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
         _bufferingPosition.tryEmit(Duration.ZERO)
     }
 }
+
+// Los dos motores comparten una sola sesión multimedia, gestionada por el coordinador.
+internal object TransitionDeckContext

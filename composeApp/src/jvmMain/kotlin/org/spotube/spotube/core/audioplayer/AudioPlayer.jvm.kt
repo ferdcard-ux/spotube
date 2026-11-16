@@ -72,6 +72,8 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
     private var shuffleEnabled = false
     private var disposed = false
     private var hasStartedPlayback = false
+    private var preparedSingle = false
+    private var singlePlayRequested = false
     private var positionPollingJob: Job? = null
 
     private val _playerState = MutableStateFlow(PlayerState.IDLE)
@@ -137,6 +139,13 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
 
             override fun paused(mediaPlayer: MediaPlayer) {
                 _playerState.tryEmit(PlayerState.PAUSED)
+                // play puede llegar mientras VLC todavía está abriendo el búfer pausado.
+                if (preparedSingle && singlePlayRequested) scope.launch {
+                    lock.withLock {
+                        if (!disposed && preparedSingle && singlePlayRequested)
+                            mediaPlayer.controls().setPause(false)
+                    }
+                }
             }
 
             override fun stopped(mediaPlayer: MediaPlayer) {
@@ -250,8 +259,19 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
             if (currentIndex !in currentPlaylist.indices) {
                 currentIndex = 0
             }
+            if (preparedSingle) {
+                singlePlayRequested = true
+                when (mediaPlayer.status().state()) {
+                    State.STOPPED, State.ENDED, State.NOTHING_SPECIAL -> mediaPlayer.controls().play()
+                    else -> mediaPlayer.controls().setPause(false)
+                }
+                return
+            }
             if (hasStartedPlayback) {
-                mediaListPlayer.controls().setPause(false)
+                if (preparedSingle) mediaPlayer.controls().setPause(false)
+                else mediaListPlayer.controls().setPause(false)
+            } else if (preparedSingle) {
+                mediaPlayer.controls().play()
             } else {
                 mediaListPlayer.controls().play(currentIndex)
             }
@@ -261,14 +281,18 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
     actual override suspend fun pause() {
         lock.withLock {
             if (disposed) return
-            mediaListPlayer.controls().pause()
+            singlePlayRequested = false
+            if (preparedSingle) mediaPlayer.controls().setPause(true)
+            else mediaListPlayer.controls().pause()
         }
     }
 
     actual override suspend fun stop() {
         lock.withLock {
             if (disposed) return
-            mediaListPlayer.controls().stop()
+            singlePlayRequested = false
+            if (preparedSingle) mediaPlayer.controls().stop()
+            else mediaListPlayer.controls().stop()
             hasStartedPlayback = false
             _position.tryEmit(Duration.ZERO)
         }
@@ -349,6 +373,8 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
         lock.withLock {
             if (disposed) return
 
+            preparedSingle = false
+            singlePlayRequested = autoPlay
             originalPlaylist.clear()
             originalPlaylist.addAll(playlist)
             currentPlaylist.clear()
@@ -374,11 +400,24 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
             _currentMediaItem.tryEmit(currentPlaylist[normalizedStartPosition])
 
             hasStartedPlayback = false
+            _position.value = Duration.ZERO
+            _duration.value = currentPlaylist[normalizedStartPosition].duration
             if (autoPlay) {
                 mediaListPlayer.controls().play(normalizedStartPosition)
             } else {
                 _playerState.tryEmit(PlayerState.PAUSED)
             }
+        }
+    }
+
+    override suspend fun prepareForTransition(mediaItem: MediaItem) {
+        load(listOf(mediaItem), false, 0)
+        lock.withLock {
+            if (disposed) return
+            preparedSingle = true
+            singlePlayRequested = false
+            // La apertura asíncrona evita bloquear el hilo de UI durante la precarga.
+            mediaPlayer.media().play(mediaItem.url, ":start-paused")
         }
     }
 

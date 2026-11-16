@@ -216,6 +216,14 @@
     <string name="settings_error_cache_size_range">Size must be 0 or a positive number.</string>
     <string name="settings_enable_endless_playback_title">Enable endless playback</string>
     <string name="settings_enable_endless_playback_subtitle">Keep playback going with recommended tracks when your queue ends.</string>
+    <string name="settings_gapless_title">Gapless playback</string>
+    <string name="settings_gapless_subtitle">Prepare the next track before the current one ends.</string>
+    <string name="settings_crossfade_title">Crossfade</string>
+    <string name="settings_crossfade_seconds">%1$d seconds (0 disables crossfade)</string>
+    <string name="settings_crossfade_curve_title">Crossfade curve</string>
+    <string name="settings_crossfade_curve_power">Equal power</string>
+    <string name="settings_crossfade_curve_linear">Linear</string>
+    <string name="settings_crossfade_curve_smooth">Smooth</string>
     <string name="settings_playback_port_title">Playback proxy server port</string>
     <string name="settings_allow_remote_control_title">Allow remote control</string>
     <string name="settings_allow_remote_control_subtitle">Let other devices on the same network control playback when they connect.</string>

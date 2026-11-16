@@ -27,6 +27,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import org.spotube.spotube.media.PlaybackService
+import org.spotube.spotube.features.player.SharedAudioFocus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -70,7 +71,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                 .setUsage(C.USAGE_MEDIA)
                 .build(),
-            true
+            false
         )
         .setHandleAudioBecomingNoisy(true)
         .build()
@@ -212,19 +213,21 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
     actual override suspend fun play() {
         withContext(Dispatchers.Main) {
             ensureServiceStarted()
-            exoPlayer.play()
+            if (SharedAudioFocus.acquire(appContext, exoPlayer)) exoPlayer.play()
         }
     }
 
     actual override suspend fun pause() {
         withContext(Dispatchers.Main) {
             exoPlayer.pause()
+            SharedAudioFocus.release(exoPlayer)
         }
     }
 
     actual override suspend fun stop() {
         withContext(Dispatchers.Main) {
             exoPlayer.stop()
+            SharedAudioFocus.release(exoPlayer)
             _playerState.tryEmit(PlayerState.IDLE)
         }
     }
@@ -319,12 +322,15 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
             val exoItems = playlist.map { it.toExoMediaItem() }
             val safeIndex = startPosition.coerceIn(0, exoItems.lastIndex)
 
+            exoPlayer.playWhenReady = autoPlay
+            _position.value = Duration.ZERO
+            _duration.value = playlist[safeIndex].duration
             exoPlayer.setMediaItems(exoItems, safeIndex, 0L)
             exoPlayer.prepare()
 
             if (autoPlay) {
                 ensureServiceStarted()
-                exoPlayer.playWhenReady = true
+                exoPlayer.playWhenReady = SharedAudioFocus.acquire(appContext, exoPlayer)
             }
 
             _currentMediaItem.tryEmit(playlist[safeIndex])
@@ -431,6 +437,7 @@ actual class AudioPlayer actual constructor(context: Any) : AudioPlayerInterface
     actual override fun isDisposed(): Boolean = disposed
 
     actual override fun dispose() {
+        SharedAudioFocus.release(exoPlayer)
         disposed = true
         exoPlayer.release()
         currentPlaylist.clear()

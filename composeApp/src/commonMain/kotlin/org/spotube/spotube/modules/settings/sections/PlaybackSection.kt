@@ -20,6 +20,8 @@ package org.spotube.spotube.modules.settings.sections
 
 import org.spotube.millennium.composables.MillenniumIcon
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.dp
 
 import org.spotube.spotube.core.ui.theming.AppTheme
 import androidx.compose.runtime.Composable
@@ -35,6 +37,7 @@ import org.spotube.spotube.core.navigation.NavigationCommands
 import org.spotube.spotube.core.navigation.Routes
 import org.spotube.spotube.modules.settings.SettingsViewModel
 import org.spotube.spotube.modules.settings.UserSettings
+import org.spotube.spotube.features.player.CrossfadeCurve
 import org.spotube.spotube.modules.settings.components.SelectionSettingCard
 import org.spotube.spotube.modules.settings.components.SettingCardItem
 import org.spotube.spotube.modules.settings.components.SwitchSettingCard
@@ -119,6 +122,46 @@ internal fun LazyListScope.playbackSection(
                     }
                 }
             )
+        }
+        add {
+            SwitchSettingCard(
+                title = stringResource(Res.string.settings_gapless_title),
+                subtitle = stringResource(Res.string.settings_gapless_subtitle),
+                checked = settings.gaplessEnabled,
+                onCheckedChange = { enabled ->
+                    settingsViewModel.updateSettings { copy(gaplessEnabled = enabled) }
+                })
+        }
+        add {
+            SettingCardItem(
+                title = stringResource(Res.string.settings_crossfade_title),
+                subtitle = stringResource(
+                    Res.string.settings_crossfade_seconds,
+                    settings.crossfadeSeconds),
+                trailingContent = {
+                    org.spotube.millennium.composables.MillenniumSlider(
+                        value = settings.crossfadeSeconds.toFloat(),
+                        onValueChange = settingsViewModel::setCrossfadeSeconds,
+                        label = stringResource(Res.string.settings_crossfade_title),
+                        valueRange = 0f..12f,
+                        modifier = androidx.compose.ui.Modifier.width(160.dp))
+                })
+        }
+        add {
+            SelectionSettingCard(
+                title = stringResource(Res.string.settings_crossfade_curve_title),
+                selectedOption = settings.crossfadeCurve,
+                options = CrossfadeCurve.entries.toList(),
+                optionLabel = { curve ->
+                    stringResource(when (curve) {
+                        CrossfadeCurve.EQUAL_POWER -> Res.string.settings_crossfade_curve_power
+                        CrossfadeCurve.LINEAR -> Res.string.settings_crossfade_curve_linear
+                        CrossfadeCurve.SMOOTH -> Res.string.settings_crossfade_curve_smooth
+                    })
+                },
+                onOptionSelected = { curve ->
+                    settingsViewModel.updateSettings { copy(crossfadeCurve = curve) }
+                })
         }
         addAll(remoteControlSettingCards(settings, settingsViewModel, requestLocalNetworkPermission))
         add {
