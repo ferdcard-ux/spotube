@@ -9,6 +9,9 @@ import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -37,16 +40,12 @@ class AudioPlayerTest {
         if (vlcNativesDir.isDirectory) {
             System.setProperty("compose.application.resources.dir", vlcNativesDir.absolutePath)
         }
-        testAudioDir = findTestAudioDir()
-        val files = testAudioDir.listFiles()
-            ?.filter { it.isFile && it.extension in setOf("mp3", "flac", "wav", "ogg", "m4a") }
-            ?.sortedBy { it.name }
-            ?: emptyList()
-        require(files.size >= 5) {
-            "Need at least 5 audio files in $testAudioDir, found ${files.size}. " +
-            "Place .mp3/.flac/.wav/.ogg/.m4a files in composeApp/src/jvmTest/resources/test-audio/"
+        testAudioDir = Files.createTempDirectory("spotube-audio-player-test").toFile()
+        repeat(5) { index ->
+            val file = File(testAudioDir, "track-${index + 1}.wav")
+            createSilentWav(file)
+            audioFiles.add(file)
         }
-        audioFiles.addAll(files)
         player = AudioPlayer(Any())
     }
 
@@ -54,17 +53,28 @@ class AudioPlayerTest {
     fun teardown() {
         runCatching { if (::player.isInitialized) player.dispose() }
         runCatching { stopKoin() }
+        audioFiles.clear()
+        if (::testAudioDir.isInitialized) testAudioDir.deleteRecursively()
     }
 
-    private fun findTestAudioDir(): File {
-        val candidates = listOf(
-            File("src/jvmTest/resources/test-audio"),
-            File("../composeApp/src/jvmTest/resources/test-audio"),
-            File(System.getProperty("user.dir"), "src/jvmTest/resources/test-audio"))
-        for (dir in candidates) {
-            if (dir.isDirectory) return dir
-        }
-        return candidates.first()
+    private fun createSilentWav(file: File) {
+        val sampleRate = 44_100
+        val durationSeconds = 8
+        val dataSize = sampleRate * durationSeconds * 2
+        val buffer = ByteBuffer.allocate(44 + dataSize).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.put("RIFF".toByteArray(Charsets.US_ASCII))
+            .putInt(36 + dataSize)
+            .put("WAVEfmt ".toByteArray(Charsets.US_ASCII))
+            .putInt(16)
+            .putShort(1)
+            .putShort(1)
+            .putInt(sampleRate)
+            .putInt(sampleRate * 2)
+            .putShort(2)
+            .putShort(16)
+            .put("data".toByteArray(Charsets.US_ASCII))
+            .putInt(dataSize)
+        file.writeBytes(buffer.array())
     }
 
     private fun mediaItem(url: String, title: String): MediaItem {
